@@ -37,7 +37,7 @@ describe('PresetsPanel', () => {
     expect(await screen.findByTestId('empty-presets')).toBeInTheDocument();
     expect(screen.queryByLabelText('Search settings')).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Voltage' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New settings' })).toBeInTheDocument();
   });
 
   it('shows the table and the search once there is something to search', async () => {

@@ -813,6 +813,49 @@ before it runs — a test that skips is not a test.
 
 ---
 
+## 21. One power control per profile
+
+The profile card carried four same-weight buttons — Apply setpoints, Power on,
+Power off, Power cycle — plus a hint and two icons, for actions that are not
+peers.
+
+**Power on and Power off are one concept with two directions**, which is exactly
+what the channel rows already say with the IEC 5009 symbol. A profile is the
+same act at a different scale, so it now uses the same control: lit when the
+rails are up, outlined when they are not, `aria-pressed` reporting the state
+rather than a label that flips. The card's status badge already says *Powered*
+or *Staged* in words, so nothing is lost by dropping the two labels.
+
+**Power cycle becomes an icon** — a round-again arrow, warning-toned on hover
+since it takes power away before giving it back — and stays disabled unless the
+profile actually owns powered rails.
+
+**Apply setpoints keeps its words.** It is the preparation step and a different
+kind of act; a glyph for it would be a guess rather than a symbol.
+
+The hint that a profile must be applied before powering on was keyed on "not
+staged", which also fired for rails that are on at the wrong values — where
+switching off is exactly what you want and is available. It now appears only
+when the control is genuinely blocked in both directions.
+
+### What this exposed in the test suite
+
+Making the two buttons one turned trailing "Power off" clicks into toggle
+presses, and a toggle with nothing on **powers up**. That surfaced two existing
+weaknesses rather than creating them:
+
+- **Cleanups went through the UI and were not awaited**, so a rail could still
+  be on when the next test began. They call the API now.
+- **Several tests competed for `psu1/CH1`.** A claim is exclusive per channel,
+  so two tests sharing one take ownership from each other and a profile reads as
+  merely matching rather than owned. The tests that assert ownership now use
+  channels nothing else touches.
+
+Both were latent before this change; the suite shares one bench, and anything
+asserting exclusive ownership has to account for that.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

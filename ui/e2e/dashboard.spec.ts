@@ -17,6 +17,11 @@ function power(card: Locator): Locator {
   return card.getByRole('button', { name: /output$/ });
 }
 
+/** The same control at profile scale: one symbol, two directions. */
+function profilePower(card: Locator): Locator {
+  return card.getByRole('button', { name: /power$/ });
+}
+
 /**
  * Open the app on a known section.
  *
@@ -27,6 +32,35 @@ function power(card: Locator): Locator {
 async function open(page: Page, section: 'bench' | 'profiles' | 'presets' = 'bench') {
   await page.goto('/');
   await page.getByTestId(`nav-${section}`).click();
+}
+
+/**
+ * Start creating a preset or a profile.
+ *
+ * An empty list carries the action itself; a populated one has the icon in its
+ * header. Which is present depends on what earlier tests happened to create, so
+ * this takes whichever is there rather than making tests order-dependent.
+ */
+/**
+ * Put a profile's rails down again.
+ *
+ * Through the API rather than the UI: a trailing click is dispatched but not
+ * waited on, so the next test could start with a rail still up — and this suite
+ * shares one bench.
+ */
+async function powerOffProfile(page: Page, id: number) {
+  const response = await page.request.post(`/api/profiles/${id}/power-off`);
+  expect(response.ok()).toBeTruthy();
+}
+
+async function startCreating(page: Page, what: 'preset' | 'profile') {
+  const icon = page.getByTestId(what === 'preset' ? 'new-preset' : 'new-profile');
+  if (await icon.count()) {
+    await icon.click();
+    return;
+  }
+  const label = what === 'preset' ? 'New settings' : 'New profile';
+  await page.getByTestId(`empty-${what}s`).getByRole('button', { name: label }).click();
 }
 
 test.afterEach(async ({ page }) => {
@@ -201,10 +235,11 @@ test.describe('profiles', () => {
     const card = page.getByTestId(`profile-${id}`);
     await expect(card).toBeVisible();
 
-    // Power on is unavailable until setpoints have been staged.
-    await expect(card.getByRole('button', { name: 'Power on' })).toBeDisabled();
+    // Power is unavailable until setpoints have been staged: with nothing on
+    // and nothing staged the control has nothing to do in either direction.
+    await expect(profilePower(card)).toBeDisabled();
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
-    await expect(card.getByRole('button', { name: 'Power on' })).toBeEnabled();
+    await expect(profilePower(card)).toBeEnabled();
 
     // Staged, but nothing is live yet.
     const state = await (await page.request.get('/api/state')).json();
@@ -212,7 +247,7 @@ test.describe('profiles', () => {
     expect(ch1.setpoint.volt).toBeCloseTo(1.2, 3);
     expect(ch1.output_on).toBe(false);
 
-    await card.getByRole('button', { name: 'Power on' }).click();
+    await profilePower(card).click();
     await expect
       .poll(async () => {
         const s = await (await page.request.get('/api/state')).json();
@@ -220,7 +255,7 @@ test.describe('profiles', () => {
       })
       .toBe(true);
 
-    await card.getByRole('button', { name: 'Power off' }).click();
+    await powerOffProfile(page, id);
   });
 
   test('re-applying over a live rail is refused, and force is offered', async ({
@@ -231,7 +266,7 @@ test.describe('profiles', () => {
 
     const card = page.getByTestId(`profile-${id}`);
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
-    await card.getByRole('button', { name: 'Power on' }).click();
+    await profilePower(card).click();
 
     await expect
       .poll(async () => {
@@ -247,7 +282,7 @@ test.describe('profiles', () => {
     await card.getByTestId('force-apply').click();
     await expect(card.getByTestId('profile-error')).toHaveCount(0);
 
-    await card.getByRole('button', { name: 'Power off' }).click();
+    await powerOffProfile(page, id);
   });
 });
 
@@ -260,23 +295,25 @@ test.describe('authoring', () => {
 
     // 1. A preset.
     await page.getByTestId('nav-presets').click();
-    await page.getByTestId('new-preset').click();
+    await startCreating(page, 'preset');
     await expect(page.getByTestId('preset-dialog')).toBeVisible();
     await page.getByLabel('Preset name').fill(`core ${stamp}`);
     await page.getByLabel('Voltage').fill('1.2');
     await page.getByLabel('Current limit').fill('1.0');
-    await page.getByRole('button', { name: 'Add settings' }).click();
+    await page.getByTestId('preset-dialog').getByRole('button', { name: 'Add settings' }).click();
     await expect(page.getByTestId('preset-dialog')).toBeHidden();
     await expect(page.getByTestId('presets-panel')).toContainText(`core ${stamp}`);
 
     // 2. A profile binding it to a channel.
     await page.getByTestId('nav-profiles').click();
-    await page.getByTestId('new-profile').click();
+    await startCreating(page, 'profile');
     await expect(page.getByTestId('profile-dialog')).toBeVisible();
     await page.getByLabel('Profile name').fill(`Board ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
+    // A channel no other test claims, so ownership here is unambiguous.
+    await page.getByRole('radio', { name: 'Simulated supply 2 CH2' }).click();
     await page.getByLabel('Rail 1 dwell').fill('40');
-    await page.getByRole('button', { name: 'Create profile' }).click();
+    await page.getByTestId('profile-dialog').getByRole('button', { name: 'Create profile' }).click();
     await expect(page.getByTestId('profile-dialog')).toBeHidden();
 
     // 3. It is listed, and applying it works.
@@ -285,9 +322,10 @@ test.describe('authoring', () => {
       .filter({ has: page.getByRole('heading', { name: `Board ${stamp}`, exact: true }) });
     await expect(card).toBeVisible();
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
-    // Power on becomes available because the bench now holds the settings, not
+    await expect(card.getByTestId('profile-error')).toHaveCount(0);
+    // Power becomes available because the bench now holds the settings, not
     // because a local flag was set.
-    await expect(card.getByRole('button', { name: 'Power on' })).toBeEnabled();
+    await expect(profilePower(card)).toBeEnabled();
     await expect(card.getByTestId('profile-status')).toHaveText('Staged');
   });
 
@@ -297,14 +335,14 @@ test.describe('authoring', () => {
 
     // psu1/CH3 is a 5 V channel in the simulated bench.
     await page.getByTestId('nav-presets').click();
-    await page.getByTestId('new-preset').click();
+    await startCreating(page, 'preset');
     await page.getByLabel('Preset name').fill(`too much ${stamp}`);
     await page.getByLabel('Voltage').fill('12');
     await page.getByLabel('Current limit').fill('1.0');
-    await page.getByRole('button', { name: 'Add settings' }).click();
+    await page.getByTestId('preset-dialog').getByRole('button', { name: 'Add settings' }).click();
 
     await page.getByTestId('nav-profiles').click();
-    await page.getByTestId('new-profile').click();
+    await startCreating(page, 'profile');
     await page.getByLabel('Profile name').fill(`Doomed ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
     await page.getByRole('radio', { name: 'Simulated supply 1 CH3' }).click();
@@ -556,12 +594,12 @@ test.describe('lists', () => {
     const stamp = Date.now();
     await open(page, 'profiles');
 
-    await page.getByTestId('new-profile').click();
+    await startCreating(page, 'profile');
     await page.getByLabel('Profile name').fill(`First ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
-    await page.getByRole('button', { name: 'Create profile' }).click();
+    await page.getByTestId('profile-dialog').getByRole('button', { name: 'Create profile' }).click();
 
-    await page.getByTestId('new-profile').click();
+    await startCreating(page, 'profile');
     await expect(page.getByLabel('Profile name')).toHaveValue('');
     await expect(page.locator('[data-testid^="binding-"]')).toHaveCount(0);
   });
@@ -570,12 +608,12 @@ test.describe('lists', () => {
     const stamp = Date.now();
     await open(page, 'presets');
 
-    await page.getByTestId('new-preset').click();
+    await startCreating(page, 'preset');
     await page.getByLabel('Preset name').fill(`First ${stamp}`);
     await page.getByLabel('Voltage').fill('4.2');
-    await page.getByRole('button', { name: 'Add settings' }).click();
+    await page.getByTestId('preset-dialog').getByRole('button', { name: 'Add settings' }).click();
 
-    await page.getByTestId('new-preset').click();
+    await startCreating(page, 'preset');
     await expect(page.getByLabel('Preset name')).toHaveValue('');
     await expect(page.getByLabel('Voltage')).toHaveValue('0');
   });
@@ -584,7 +622,7 @@ test.describe('lists', () => {
     // A flat dropdown repeated the supply name and the limits on every line and
     // grew a line per channel; this grows a row per supply.
     await open(page, 'profiles');
-    await page.getByTestId('new-profile').click();
+    await startCreating(page, 'profile');
     await page.getByRole('button', { name: 'Add rail' }).click();
 
     const rail = page.getByTestId('binding-0');
@@ -602,7 +640,7 @@ test.describe('lists', () => {
 
   test('a second rail does not land on the first one\'s channel', async ({ page }) => {
     await open(page, 'profiles');
-    await page.getByTestId('new-profile').click();
+    await startCreating(page, 'profile');
     await page.getByRole('button', { name: 'Add rail' }).click();
     await page.getByRole('button', { name: 'Add rail' }).click();
 
@@ -626,7 +664,10 @@ test.describe('lists', () => {
     });
     const presetId = (await preset.json()).id;
     const binding = {
-      slot: 'psu1', channel: 'CH1', preset_id: presetId,
+      // A channel no other test touches. A claim is exclusive per channel, so
+      // two tests sharing one take it from each other and this reads as merely
+      // matching rather than owned.
+      slot: 'psu3', channel: 'CH3', preset_id: presetId,
       sequence_order: 1, delay_ms: 0, output_on: true,
     };
     for (const name of [`Rev C ${stamp}`, `Rev D ${stamp}`]) {
@@ -655,7 +696,7 @@ test.describe('lists', () => {
 
     // And the bench itself names the owner of the rail.
     await page.getByTestId('nav-bench').click();
-    await expect(page.getByTestId('channel-psu1-CH1')).toContainText(`Rev C ${stamp}`);
+    await expect(page.getByTestId('channel-psu3-CH3')).toContainText(`Rev C ${stamp}`);
   });
 
   test('a claim is released when someone changes the rail', async ({ page }) => {
@@ -720,7 +761,7 @@ test.describe('lists', () => {
     await expect(card.getByTestId('power-cycle')).toBeDisabled();
 
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
-    await card.getByRole('button', { name: 'Power on' }).click();
+    await profilePower(card).click();
     await expect(card.getByTestId('profile-status')).toHaveText('Powered', {
       timeout: 10_000,
     });
@@ -734,7 +775,7 @@ test.describe('lists', () => {
       timeout: 10_000,
     });
 
-    await card.getByRole('button', { name: 'Power off' }).click();
+    await powerOffProfile(page, profileId);
   });
 
   test('rails on at the wrong values do not read as applied', async ({ page }) => {
@@ -823,7 +864,7 @@ test.describe('lists', () => {
     await expect(sequence.getByTestId('rail-volt')).toHaveText('—');
 
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
-    await card.getByRole('button', { name: 'Power on' }).click();
+    await profilePower(card).click();
 
     // Live: what the rail is actually doing, without leaving for the bench.
     await expect(sequence.getByTestId('rail-volt')).toContainText('V', {
@@ -831,7 +872,7 @@ test.describe('lists', () => {
     });
     await expect(sequence.getByTestId('rail-curr')).toContainText('A');
 
-    await card.getByRole('button', { name: 'Power off' }).click();
+    await powerOffProfile(page, profileId);
   });
 
   test('reduced motion is respected', async ({ browser }) => {

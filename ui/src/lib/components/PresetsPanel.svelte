@@ -159,7 +159,7 @@
   {#if empty}
     <EmptyState
       title="No rail settings yet"
-      action="Add settings"
+      action="New settings"
       onAction={create}
       testid="empty-presets"
     >

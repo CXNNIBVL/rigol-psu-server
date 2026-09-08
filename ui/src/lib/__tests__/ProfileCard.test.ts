@@ -137,18 +137,32 @@ describe('ProfileCard', () => {
   // Applying and energising are separate actions on purpose. Power on stays
   // disabled until setpoints have been staged, so loading a profile can never
   // put energy into a device as a side effect.
-  it('keeps power-on disabled until the bench actually holds the setpoints', () => {
+  const power = () => screen.getByRole('button', { name: 'Mainboard power' });
+
+  it('keeps power unavailable until the bench actually holds the setpoints', () => {
     // Derived from published state, not from a local flag — so a reload no
-    // longer forgets that a profile was staged.
+    // longer forgets that a profile was staged. With nothing on and nothing
+    // staged the control has nothing to do in either direction.
     render(ProfileCard, { profile: profile(), devices: idleBench() });
-    expect(screen.getByRole('button', { name: 'Power on' })).toBeDisabled();
+    expect(power()).toBeDisabled();
     expect(screen.getByTestId('profile-status')).toHaveTextContent('Not applied');
   });
 
-  it('enables power-on when the rails already hold its settings', () => {
+  it('offers power once the rails hold its settings', () => {
     render(ProfileCard, { profile: profile(), devices: stagedBench() });
-    expect(screen.getByRole('button', { name: 'Power on' })).toBeEnabled();
+    expect(power()).toBeEnabled();
+    expect(power()).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByTestId('profile-status')).toHaveTextContent('Staged');
+  });
+
+  it('reads as pressed while the rails are up, so one control shows both', () => {
+    // Power is one concept with two directions, the same as on a channel row.
+    const live = stagedBench().map((d) => ({
+      ...d,
+      channels: d.channels.map((c) => (c.id === 'CH1' ? { ...c, output_on: true } : c)),
+    }));
+    render(ProfileCard, { profile: profile(), devices: live });
+    expect(power()).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('says so when the rails are on but not at this profile\'s values', () => {
@@ -242,9 +256,20 @@ describe('ProfileCard', () => {
     expect(screen.getByTestId('power-cycle')).toBeDisabled();
   });
 
-  it('power off is always available, staged or not', () => {
-    render(ProfileCard, { profile: profile(), devices: stagedBench() });
-    expect(screen.getByRole('button', { name: 'Power off' })).toBeEnabled();
+  it('can always switch off rails that are up, however they got there', () => {
+    // Even with the values changed out from under it — switching off is exactly
+    // what you want there, and it stays available.
+    const altered = stagedBench().map((d) => ({
+      ...d,
+      channels: d.channels.map((c) =>
+        c.id === 'CH1'
+          ? { ...c, output_on: true, setpoint: { volt: 12, curr_limit: 1 } }
+          : c,
+      ),
+    }));
+    render(ProfileCard, { profile: profile(), devices: altered });
+    expect(power()).toBeEnabled();
+    expect(screen.queryByText(/Apply the setpoints before/)).not.toBeInTheDocument();
   });
 
   it('offers force only when the server says the refusal is forceable', async () => {

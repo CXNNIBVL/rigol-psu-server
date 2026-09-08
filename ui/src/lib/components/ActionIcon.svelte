@@ -22,7 +22,7 @@
     title,
     testid,
   }: {
-    action: 'new' | 'edit' | 'delete' | 'confirm' | 'dismiss';
+    action: 'new' | 'edit' | 'delete' | 'confirm' | 'dismiss' | 'cycle';
     label: string;
     onclick?: () => void;
     disabled?: boolean;
@@ -39,6 +39,9 @@
     // Dismissing is not destructive — it puts nothing at risk — so it stays
     // neutral and simply brightens.
     dismiss: '',
+    // Cycling takes power away before giving it back, so it warns rather than
+    // reassures.
+    cycle: 'hover:text-warning-500 focus-visible:text-warning-500',
   } as const;
 </script>
 
@@ -72,6 +75,10 @@
       <!-- Bin -->
       <path d="M4 7h16M10 7V5h4v2M6 7l1 13h10l1-13" />
       <path d="M10 11v6M14 11v6" />
+    {:else if action === 'cycle'}
+      <!-- Round again: off, then back up. -->
+      <path d="M20 11.5a8 8 0 1 1-2.5-5.8" />
+      <path d="M20 4v4h-4" />
     {:else if action === 'confirm'}
       <path d="M5 12.5l5 5L19 7" />
     {:else}

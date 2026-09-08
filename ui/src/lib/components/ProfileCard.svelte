@@ -16,6 +16,7 @@
   } from '../profile-state';
   import { reading, trim, UNKNOWN } from '../format';
   import ActionIcon from './ActionIcon.svelte';
+  import PowerButton from './PowerButton.svelte';
 
   let {
     profile,
@@ -54,6 +55,22 @@
   const detail = $derived(stateDetail(condition, owner));
   // Cycling de-energises something that is currently live, so it asks first.
   let confirmingCycle = $state(false);
+
+  // Power is one concept with two directions, the same as it is on a channel
+  // row — so it is one control here too, with the same symbol. Two buttons made
+  // the card's busiest row busier and implied they were separate acts.
+  const anyOn = $derived(
+    profile.bindings.some(
+      (b) =>
+        b.output_on &&
+        devices
+          .find((d) => d.slot === b.slot)
+          ?.channels.find((c) => c.id === b.channel)?.output_on === true,
+    ),
+  );
+  // Nothing on to switch off and nothing staged to switch on: the control would
+  // have nothing to do either way.
+  const cannotToggle = $derived(!anyOn && !staged);
 
   const TONE: Record<string, string> = {
     powered: 'preset-tonal-success',
@@ -163,37 +180,31 @@
     >
       Apply setpoints
     </button>
-    <button
-      class="btn btn-sm preset-filled-success-500"
-      type="button"
-      disabled={busy || !staged}
-      onclick={() => run(() => powerOnProfile(profile.id))}
-    >
-      Power on
-    </button>
-    <button
-      class="btn btn-sm preset-tonal-error"
-      type="button"
-      disabled={busy}
-      onclick={() => run(() => powerOffProfile(profile.id))}
-    >
-      Power off
-    </button>
-    <button
-      class="btn btn-sm preset-tonal"
-      type="button"
+
+    <PowerButton
+      on={anyOn}
+      disabled={cannotToggle}
+      {busy}
+      label="{profile.name} power"
+      onToggle={(next) =>
+        run(() => (next ? powerOnProfile(profile.id) : powerOffProfile(profile.id)))}
+    />
+
+    <ActionIcon
+      action="cycle"
+      label="Power cycle {profile.name}"
+      testid="power-cycle"
       disabled={busy || condition !== 'powered'}
       title={condition === 'powered'
         ? 'Switch these rails off, let them settle, and bring them back up in order'
         : 'Only available while this profile has its rails powered'}
       onclick={() => (confirmingCycle = true)}
-      data-testid="power-cycle"
-    >
-      Power cycle
-    </button>
+    />
 
-    {#if !staged}
-      <!-- A disabled control with no visible reason reads as a broken one. -->
+    {#if cannotToggle}
+      <!-- Shown only when the control is genuinely blocked. Keyed on `!staged`
+           it also appeared for rails that are on at the wrong values, where
+           switching off is exactly what you want and is available. -->
       <span class="text-xs opacity-60">Apply the setpoints before powering on</span>
     {/if}
 
