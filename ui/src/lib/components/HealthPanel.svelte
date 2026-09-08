@@ -39,9 +39,9 @@
         <header class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-3">
             <h3 class="h4">{row.device.label}</h3>
-            <StatusBadge status={row.status} />
+            <StatusBadge status={row.status} size="lg" />
             {#if row.device.front_panel_locked}
-              <span class="badge preset-tonal-surface">Panel locked</span>
+              <span class="badge preset-tonal-surface text-sm px-3 py-1">Panel locked</span>
             {/if}
           </div>
           <p class="text-xs opacity-60">{row.device.slot} · {row.device.device}</p>

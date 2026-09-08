@@ -103,6 +103,42 @@ export function offlineReason(code: OfflineCode, message: string): string {
   }
 }
 
+/**
+ * How a channel card presents itself.
+ *
+ * `live` and `off` are carried by the card's own appearance — a coloured border
+ * and full opacity versus a dimmed card — rather than by a badge. Both signals
+ * are non-hue (a border is either there or not; dimming is a lightness change),
+ * so the distinction survives colour blindness without a label.
+ *
+ * The exceptional states do not get that treatment. `Unknown` and a limit
+ * violation must be named in words, because neither is something a reader can
+ * be expected to infer from styling, and both are conditions where guessing is
+ * expensive.
+ */
+export type ChannelPresentation = 'live' | 'off' | 'unknown' | 'violation';
+
+export function channelPresentation(channel: ChannelView): ChannelPresentation {
+  if (channel.violation) return 'violation';
+  if (channel.output_on === null) return 'unknown';
+  return channel.output_on ? 'live' : 'off';
+}
+
+/** Whole literal class strings — Tailwind cannot see an assembled one. */
+export const CHANNEL_CARD: Record<ChannelPresentation, string> = {
+  live: 'border border-success-500 bg-success-500/5',
+  off: 'preset-outlined-surface-200-800 opacity-60',
+  unknown: 'border border-warning-500',
+  violation: 'border border-error-500',
+};
+
+/** Only the exceptional states are announced; live and off are shown, not said. */
+export function channelBadge(channel: ChannelView): StatusTone | null {
+  const presentation = channelPresentation(channel);
+  if (presentation === 'live' || presentation === 'off') return null;
+  return channelStatus(channel);
+}
+
 export function channelStatus(channel: ChannelView): StatusTone {
   if (channel.violation) {
     return {

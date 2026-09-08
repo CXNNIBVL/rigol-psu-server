@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CHANNEL_CARD,
   UNKNOWN,
   canEnergise,
+  channelBadge,
+  channelPresentation,
   channelStatus,
   deviceStatus,
   formatAmps,
@@ -145,5 +148,59 @@ describe('write permissions', () => {
     const d = device({ state: 'quarantined', reported_serial: 'X' } as never);
     expect(isWritable(d, channel())).toBe(true);
     expect(canEnergise(d, channel())).toBe(false);
+  });
+});
+
+describe('channel presentation', () => {
+  it('distinguishes live from off', () => {
+    expect(channelPresentation(channel({ output_on: true }))).toBe('live');
+    expect(channelPresentation(channel({ output_on: false }))).toBe('off');
+  });
+
+  it('treats unknown and violating channels as their own cases', () => {
+    expect(channelPresentation(unknownChannel())).toBe('unknown');
+    expect(
+      channelPresentation(
+        channel({ violation: { quantity: 'voltage', requested: 12, limit: 5.5 } }),
+      ),
+    ).toBe('violation');
+  });
+
+  it('a violation outranks the output state', () => {
+    // A frozen channel that happens to be live must read as the violation,
+    // since that is the thing someone has to act on.
+    const frozen = channel({
+      output_on: true,
+      violation: { quantity: 'voltage', requested: 12, limit: 5.5 },
+    });
+    expect(channelPresentation(frozen)).toBe('violation');
+  });
+
+  it('says nothing in words for live and off — the card shows it', () => {
+    expect(channelBadge(channel({ output_on: true }))).toBeNull();
+    expect(channelBadge(channel({ output_on: false }))).toBeNull();
+  });
+
+  it('still names the exceptional states', () => {
+    // These are not inferable from styling, and guessing them is expensive.
+    expect(channelBadge(unknownChannel())?.label).toBe(UNKNOWN);
+    expect(
+      channelBadge(channel({ violation: { quantity: 'current', requested: 3, limit: 2 } }))
+        ?.label,
+    ).toBe('Limit violation');
+  });
+
+  it('separates live from off by more than hue', () => {
+    // Border-present vs absent, and full opacity vs dimmed: both survive
+    // colour blindness, which is why dropping the On/Off badge is safe.
+    expect(CHANNEL_CARD.live).toContain('border');
+    expect(CHANNEL_CARD.off).toContain('opacity');
+    expect(CHANNEL_CARD.live).not.toContain('opacity');
+  });
+
+  it('never dims a channel that needs attention', () => {
+    // An unknown or violating rail must not recede into the background.
+    expect(CHANNEL_CARD.unknown).not.toContain('opacity');
+    expect(CHANNEL_CARD.violation).not.toContain('opacity');
   });
 });

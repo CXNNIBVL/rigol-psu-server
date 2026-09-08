@@ -2,7 +2,10 @@
   import type { ChannelView, DeviceView } from '../types';
   import {
     canEnergise,
+    channelBadge,
     channelStatus,
+    CHANNEL_CARD,
+    channelPresentation,
     formatAmps,
     formatVolts,
     formatWatts,
@@ -21,6 +24,10 @@
   let busy = $state(false);
 
   const status = $derived(channelStatus(channel));
+  // A live rail gets a green border and full opacity; an off one is dimmed.
+  // Neither needs a badge to say so.
+  const presentation = $derived(channelPresentation(channel));
+  const badge = $derived(channelBadge(channel));
   const writable = $derived(isWritable(device, channel));
   const energisable = $derived(canEnergise(device, channel));
 
@@ -61,10 +68,16 @@
   }
 </script>
 
-<article class="card preset-outlined-surface-200-800 p-4 space-y-3" data-testid="channel-{device.slot}-{channel.id}">
-  <header class="flex items-center justify-between gap-2">
+<article
+  class="card p-4 space-y-3 {CHANNEL_CARD[presentation]}"
+  data-testid="channel-{device.slot}-{channel.id}"
+  data-state={presentation}
+>
+  <header class="flex items-center justify-between gap-2 min-h-7">
     <h3 class="h4">{channel.id}</h3>
-    <StatusBadge {status} />
+    {#if badge}
+      <StatusBadge status={badge} />
+    {/if}
   </header>
 
   <dl class="reading grid grid-cols-3 gap-2 text-center">

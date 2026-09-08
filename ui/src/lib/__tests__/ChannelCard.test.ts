@@ -56,4 +56,30 @@ describe('ChannelCard', () => {
     render(ChannelCard, { device: device(), channel: channel() });
     expect(screen.getByText(/Limits 5\.500 V \/ 2\.000 A/)).toBeInTheDocument();
   });
+
+  it('marks its state on the element, and drops the on/off badge', () => {
+    render(ChannelCard, { device: device(), channel: channel({ output_on: true }) });
+    const card = screen.getByTestId('channel-psu1-CH1');
+    expect(card).toHaveAttribute('data-state', 'live');
+    // The border and opacity carry this; a badge would be redundant.
+    expect(card.querySelector('.badge')).toBeNull();
+  });
+
+  it('dims an off channel without labelling it', () => {
+    render(ChannelCard, { device: device(), channel: channel({ output_on: false }) });
+    const card = screen.getByTestId('channel-psu1-CH1');
+    expect(card).toHaveAttribute('data-state', 'off');
+    expect(card.className).toContain('opacity');
+  });
+
+  it('keeps naming Unknown in words', () => {
+    render(ChannelCard, {
+      device: device({ state: 'offline', code: 'device_gone', message: 'gone' } as never),
+      channel: unknownChannel(),
+    });
+    const card = screen.getByTestId('channel-psu1-CH1');
+    expect(card).toHaveAttribute('data-state', 'unknown');
+    expect(card.querySelector('.badge')).toHaveTextContent('Unknown');
+    expect(card.className).not.toContain('opacity');
+  });
 });

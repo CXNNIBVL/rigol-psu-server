@@ -12,9 +12,9 @@
   <header class="flex flex-wrap items-baseline justify-between gap-2">
     <div class="flex items-center gap-3">
       <h2 class="h3">{device.label}</h2>
-      <StatusBadge {status} />
+      <StatusBadge {status} size="lg" />
       {#if device.front_panel_locked}
-        <span class="badge preset-tonal-surface" title="The instrument's front panel is locked while the server is driving it.">
+        <span class="badge preset-tonal-surface text-sm px-3 py-1" title="The instrument's front panel is locked while the server is driving it.">
           Panel locked
         </span>
       {/if}

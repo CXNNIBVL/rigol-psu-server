@@ -67,15 +67,20 @@ test('a setpoint above the operator limit is refused, with both numbers', async 
   await expect(error).toContainText('5.000');
 });
 
-test('switching a channel on and off round-trips', async ({ page }) => {
+test('switching a channel on and off changes how the card presents', async ({
+  page,
+}) => {
+  // The state is carried by the card's appearance rather than a badge, so this
+  // asserts on the state attribute that drives it.
   await page.goto('/');
   const card = page.getByTestId('channel-psu2-CH1');
+  await expect(card).toHaveAttribute('data-state', 'off');
 
   await card.getByRole('button', { name: 'On' }).click();
-  await expect(card.getByText('On', { exact: true }).first()).toBeVisible();
+  await expect(card).toHaveAttribute('data-state', 'live');
 
   await card.getByRole('button', { name: 'Off' }).click();
-  await expect(card).toContainText('Off');
+  await expect(card).toHaveAttribute('data-state', 'off');
 });
 
 test('a supply that stops answering shows Unknown, never zero', async ({ page }) => {
@@ -89,6 +94,8 @@ test('a supply that stops answering shows Unknown, never zero', async ({ page })
   await injectFault(page, 'psu3', 'disconnected');
 
   await expect(card.getByTestId('volt')).toContainText('Unknown', { timeout: 10_000 });
+  // A rail whose state is unknown must not be presented as a quiet, off one.
+  await expect(card).toHaveAttribute('data-state', 'unknown');
   await expect(card.getByTestId('volt')).not.toContainText('0.000');
   await expect(card.getByTestId('curr')).toContainText('Unknown');
   await expect(card.getByTestId('power')).toContainText('Unknown');

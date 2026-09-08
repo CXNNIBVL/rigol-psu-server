@@ -543,6 +543,13 @@ drift:
   clamp-violating channels each carry a text label as well as a colour. A rail
   whose state is unknown must not be distinguishable from a healthy one by hue
   alone — that is precisely the case where a misread is expensive.
+- **On and off are shown, not said.** A live channel gets a coloured border and
+  full opacity; an off one is dimmed. Both signals are non-hue — a border is
+  either present or not, and dimming is a lightness change — so the distinction
+  survives colour blindness without a badge. The exceptional states are exempt
+  from this and keep their labels: nobody should have to infer "we do not know
+  what this rail is doing" from styling. A channel needing attention is also
+  never dimmed, so it cannot recede into the background.
 
 ---
 
