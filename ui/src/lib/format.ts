@@ -50,9 +50,25 @@ export function outputLabel(channel: ChannelView): OutputLabel {
  */
 export interface StatusTone {
   label: string;
-  tone: 'success' | 'warning' | 'error' | 'surface';
+  tone: Tone;
   detail?: string;
 }
+
+export type Tone = 'success' | 'warning' | 'error' | 'surface';
+
+/**
+ * Tone to Skeleton class, as whole literal strings.
+ *
+ * Tailwind generates utilities by scanning source text, so a class assembled at
+ * runtime by interpolating the tone is never emitted and the element silently
+ * renders unstyled. Every tone has to appear here in full.
+ */
+export const TONAL: Record<Tone, string> = {
+  success: 'preset-tonal-success',
+  warning: 'preset-tonal-warning',
+  error: 'preset-tonal-error',
+  surface: 'preset-tonal-surface',
+};
 
 export function deviceStatus(device: DeviceView): StatusTone {
   switch (device.state) {

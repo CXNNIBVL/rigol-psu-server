@@ -91,7 +91,7 @@
       Apply setpoints
     </button>
     <button
-      class="btn preset-filled-primary"
+      class="btn preset-filled-primary-500"
       type="button"
       disabled={busy || !staged}
       title={staged ? 'Energise the rails in sequence' : 'Apply the setpoints first'}
@@ -114,7 +114,7 @@
       <p class="text-sm">{error}</p>
       {#if forceable}
         <button
-          class="btn btn-sm preset-filled-warning"
+          class="btn btn-sm preset-filled-warning-500"
           type="button"
           disabled={busy}
           onclick={() => stage(true)}

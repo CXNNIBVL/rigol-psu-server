@@ -4,6 +4,15 @@
 
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
 
+/*
+  Tailwind 4 drives its `dark` variant from prefers-color-scheme unless told
+  otherwise, and Skeleton keys its entire palette off `@variant dark`. Without
+  this, the `dark` class on <html> is inert and the bench renders light on a
+  machine set to light — which is not what a instrument display read from across
+  a room wants. Redefining the variant makes the class authoritative.
+*/
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Readings are tabular so digits do not jitter as values change. A column of
    numbers that shifts horizontally twice a second is hard to read and harder to
    compare. */

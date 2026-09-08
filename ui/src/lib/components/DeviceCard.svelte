@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { DeviceView } from '../types';
-  import { deviceStatus } from '../format';
+  import { deviceStatus, TONAL } from '../format';
   import ChannelCard from './ChannelCard.svelte';
   import StatusBadge from './StatusBadge.svelte';
 
@@ -23,7 +23,7 @@
   </header>
 
   {#if status.detail}
-    <p class="preset-tonal-{status.tone} p-3 rounded text-sm" role="status" data-testid="device-detail">
+    <p class="{TONAL[status.tone]} p-3 rounded text-sm" role="status" data-testid="device-detail">
       {status.detail}
     </p>
   {/if}

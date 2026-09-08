@@ -7,6 +7,7 @@
     formatVolts,
     formatWatts,
     isWritable,
+    TONAL,
     UNKNOWN,
   } from '../format';
   import { ApiFailure, setOutput, setSetpoint } from '../api';
@@ -88,7 +89,7 @@
   </p>
 
   {#if status.detail}
-    <p class="text-xs preset-tonal-{status.tone} p-2 rounded" data-testid="channel-detail">
+    <p class="text-xs {TONAL[status.tone]} p-2 rounded" data-testid="channel-detail">
       {status.detail}
     </p>
   {/if}
@@ -140,7 +141,7 @@
       Off
     </button>
     <button
-      class="btn preset-filled-primary grow"
+      class="btn preset-filled-primary-500 grow"
       type="button"
       disabled={!energisable || busy}
       onclick={() => toggle(true)}
