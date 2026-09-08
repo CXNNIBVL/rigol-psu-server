@@ -14,6 +14,18 @@ import { describe, expect, it } from 'vitest';
 
 const PRESETS_CSS = 'node_modules/@skeletonlabs/skeleton/src/utilities/presets.css';
 
+/**
+ * The contents of every `class` attribute in a file.
+ *
+ * Scoped deliberately: `preset-` also prefixes test ids and appears in prose,
+ * and matching those made this check fire on things that were never CSS.
+ */
+function classValues(text: string): string[] {
+  return [...text.matchAll(/\bclass=(?:"([^"]*)"|\{([^}]*)\})/g)].map(
+    (m) => m[1] ?? m[2] ?? '',
+  );
+}
+
 function sourceFiles(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry);
@@ -34,9 +46,11 @@ describe('Skeleton class names', () => {
 
     const used = new Set<string>();
     for (const file of sourceFiles('src')) {
-      for (const m of readFileSync(file, 'utf8').matchAll(/\bpreset-[a-z0-9-]+/g)) {
-        // Skip fragments left by interpolation, which are caught separately.
-        if (!m[0].endsWith('-')) used.add(m[0]);
+      for (const value of classValues(readFileSync(file, 'utf8'))) {
+        for (const m of value.matchAll(/\bpreset-[a-z0-9-]+/g)) {
+          // Skip fragments left by interpolation, caught by the next test.
+          if (!m[0].endsWith('-')) used.add(m[0]);
+        }
       }
     }
     expect(used.size).toBeGreaterThan(0);
@@ -46,12 +60,34 @@ describe('Skeleton class names', () => {
   });
 
   it('no preset class is assembled by interpolation', () => {
-    // Tailwind scans source text, so `preset-tonal-{tone}` is never generated.
+    // Tailwind scans source text, so a preset class whose colour is spliced in
+    // at runtime is never generated and the element renders unstyled.
     for (const file of sourceFiles('src')) {
-      const text = readFileSync(file, 'utf8');
-      expect(text, `${file} builds a preset class at runtime`).not.toMatch(
-        /preset-[a-z0-9-]*[-]?\{/,
-      );
+      for (const value of classValues(readFileSync(file, 'utf8'))) {
+        expect(value, `${file} builds a preset class at runtime`).not.toMatch(
+          /preset-[a-z0-9-]*-\s*\{/,
+        );
+      }
     }
+  });
+
+  // A guard is only worth having if it still fires. These pin the two
+  // detectors against synthetic input, so narrowing the scan to `class`
+  // attributes cannot quietly turn the checks into no-ops.
+  it('the scan sees class attributes and ignores test ids', () => {
+    const svelte = `
+      <div data-testid="preset-error" class="badge preset-tonal-success"></div>
+      <p class={TONAL[tone]}>hi</p>
+    `;
+    const found = classValues(svelte).flatMap((v) => [
+      ...v.matchAll(/\bpreset-[a-z0-9-]+/g),
+    ].map((m) => m[0]));
+    expect(found).toEqual(['preset-tonal-success']);
+  });
+
+  it('the interpolation detector still fires on a spliced class', () => {
+    const bad = '<p class="preset-tonal-{tone} p-2"></p>';
+    const values = classValues(bad);
+    expect(values.some((v) => /preset-[a-z0-9-]*-\s*\{/.test(v))).toBe(true);
   });
 });

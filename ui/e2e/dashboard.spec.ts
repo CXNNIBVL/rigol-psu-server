@@ -210,3 +210,99 @@ test.describe('profiles', () => {
     await card.getByRole('button', { name: 'Power off' }).click();
   });
 });
+
+test.describe('authoring', () => {
+  test('a profile can be built entirely in the UI', async ({ page }) => {
+    // The gap this closes: before, presets and profiles could only be created
+    // by hand-writing JSON against the API.
+    const stamp = Date.now();
+    await page.goto('/');
+
+    // 1. A preset.
+    await page.getByRole('button', { name: 'Presets' }).click();
+    await page.getByLabel('Preset name').fill(`core ${stamp}`);
+    await page.getByLabel('Voltage').fill('1.2');
+    await page.getByLabel('Current limit').fill('1.0');
+    await page.getByRole('button', { name: 'Create' }).click();
+    await expect(page.getByTestId('presets-panel')).toContainText(`core ${stamp}`);
+
+    // 2. A profile binding it to a channel.
+    await page.getByRole('button', { name: 'Profiles' }).click();
+    await page.getByTestId('new-profile').click();
+    await page.getByLabel('Profile name').fill(`Board ${stamp}`);
+    await page.getByRole('button', { name: 'Add rail' }).click();
+    await page.getByLabel('Rail 1 dwell').fill('40');
+    await page.getByRole('button', { name: 'Create' }).click();
+
+    // 3. It is listed, and applying it works.
+    const card = page.locator('[data-testid^="profile-"]', {
+      hasText: `Board ${stamp}`,
+    });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('wait 40 ms');
+    await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    await expect(card.getByRole('button', { name: 'Power on' })).toBeEnabled();
+  });
+
+  test('the editor refuses a preset that exceeds the channel limit', async ({ page }) => {
+    const stamp = Date.now();
+    await page.goto('/');
+
+    // psu1/CH3 is a 5 V channel in the simulated bench.
+    await page.getByRole('button', { name: 'Presets' }).click();
+    await page.getByLabel('Preset name').fill(`too much ${stamp}`);
+    await page.getByLabel('Voltage').fill('12');
+    await page.getByLabel('Current limit').fill('1.0');
+    await page.getByRole('button', { name: 'Create' }).click();
+
+    await page.getByRole('button', { name: 'Profiles' }).click();
+    await page.getByTestId('new-profile').click();
+    await page.getByLabel('Profile name').fill(`Doomed ${stamp}`);
+    await page.getByRole('button', { name: 'Add rail' }).click();
+    await page.getByLabel('Rail 1 channel').selectOption('psu1/CH3');
+    await page.getByLabel('Rail 1 preset').selectOption({ label: `too much ${stamp} (12.000 V)` });
+
+    await expect(page.getByTestId('binding-warning-0')).toContainText('exceeds');
+    await expect(page.getByRole('button', { name: 'Create' })).toBeDisabled();
+  });
+
+  test('deleting a preset a profile depends on is refused with a reason', async ({
+    page,
+  }) => {
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `in use ${stamp}`, volt: 1.0, curr_limit: 1.0,
+        ovp_level: 1.5, ovp_enabled: false, ocp_level: 1.5, ocp_enabled: false,
+        output_on: true,
+      },
+    });
+    const presetId = (await preset.json()).id;
+    await page.request.post('/api/profiles', {
+      data: {
+        name: `Depends ${stamp}`, description: '',
+        bindings: [{ slot: 'psu1', channel: 'CH1', preset_id: presetId, sequence_order: 1, delay_ms: 0 }],
+      },
+    });
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Presets' }).click();
+    await page.getByTestId(`preset-${presetId}`).getByRole('button', { name: 'Delete' }).click();
+
+    await expect(page.getByTestId('preset-error')).toContainText('cannot be deleted');
+    await expect(page.getByTestId(`preset-${presetId}`)).toBeVisible();
+  });
+
+  test('the health view reports a faulted supply', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Health' }).click();
+    await expect(page.getByTestId('all-well')).toBeVisible();
+
+    await injectFault(page, 'psu2', 'disconnected');
+    await expect(page.getByTestId('health-psu2')).toContainText('Offline', {
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId('health-detail-psu2')).toContainText(/may still be live/i);
+    await expect(page.getByTestId('all-well')).toHaveCount(0);
+  });
+});

@@ -12,7 +12,7 @@ alternatives that were rejected, is in **[docs/PLAN.md](docs/PLAN.md)**.
 |---|---|
 | M1 — `dp832` driver crate (SCPI, USBTMC, simulator) | done |
 | M2 — server skeleton (config, actors, polling, API, WebSocket) | done |
-| M3 — Svelte dashboard | done |
+| M3 — Svelte UI (bench, profiles, presets, health) | done |
 | M4 — safety hardening | done |
 | M5 — presets and profiles (SQLite) | done |
 | M6 — deployment on the lab PC | files in `deploy/`, not yet installed |
@@ -42,6 +42,12 @@ Presets and profiles are stored in SQLite at `--database`
 
 The API describes itself at `GET /api/openapi.json` (OpenAPI 3.1), generated
 from the same Rust types the handlers return.
+
+## Using it
+
+Four tabs: **Bench** (live readouts and direct control), **Profiles** (create,
+edit, apply), **Presets** (the per-channel primitives), **Health** (per-supply
+status, serial mismatches, limit violations).
 
 ## Applying a profile
 

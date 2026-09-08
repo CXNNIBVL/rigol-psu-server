@@ -57,8 +57,33 @@ export const listPresets = () => request<ChannelPreset[]>('/api/presets', 'GET')
 export const createPreset = (preset: Omit<ChannelPreset, 'id'>) =>
   request<ChannelPreset>('/api/presets', 'POST', preset);
 
+export const updatePreset = (id: number, preset: Omit<ChannelPreset, 'id'>) =>
+  request<ChannelPreset>(`/api/presets/${id}`, 'PUT', preset);
+
 export const deletePreset = (id: number) =>
   request<void>(`/api/presets/${id}`, 'DELETE');
+
+/** A binding as the API accepts it — preset by id, channel as a string. */
+export interface NewBinding {
+  slot: string;
+  channel: string;
+  preset_id: number;
+  sequence_order: number;
+  delay_ms: number;
+}
+
+export interface NewProfile {
+  name: string;
+  description: string;
+  bindings: NewBinding[];
+}
+
+export const createProfile = (profile: NewProfile) =>
+  request<DeviceProfile>('/api/profiles', 'POST', profile);
+
+/** Replaces the profile wholesale, bindings included. */
+export const updateProfile = (id: number, profile: NewProfile) =>
+  request<DeviceProfile>(`/api/profiles/${id}`, 'PUT', profile);
 
 export const listProfiles = () => request<DeviceProfile[]>('/api/profiles', 'GET');
 

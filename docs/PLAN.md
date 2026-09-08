@@ -496,6 +496,20 @@ Build order chosen so a half-finished v1 is still useful.
    clamp-violation banners, connection error reasons.
 4. **Preset library** — CRUD on the channel-preset primitives.
 
+All four are built. Two decisions worth recording:
+
+The profile editor derives its channel list from **live state**, not from a
+hard-coded table, so a rail cannot be bound to a slot that is not configured and
+each channel's operator limits are visible at the moment a preset is chosen. It
+also warns *before* submission when a preset exceeds the chosen channel's limit
+or a channel is bound twice — the server still refuses both, but there is no
+value in letting someone assemble a profile that is certain to be rejected.
+
+Editing a profile seeds the form once and then leaves it alone; the component is
+keyed on the profile id so choosing a different profile remounts it. A form that
+re-synced from server state mid-edit would discard whatever the user was typing
+every time a snapshot arrived — which, at 2 Hz, is constantly.
+
 ### 14.1 Component library
 
 **Skeleton UI v5** with the built-in **Cerberus** theme. (Recorded as v3 when

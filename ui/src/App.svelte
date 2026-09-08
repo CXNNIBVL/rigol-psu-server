@@ -3,9 +3,21 @@
   import { Bench } from './lib/bench.svelte';
   import DeviceCard from './lib/components/DeviceCard.svelte';
   import ProfilesPanel from './lib/components/ProfilesPanel.svelte';
+  import PresetsPanel from './lib/components/PresetsPanel.svelte';
+  import HealthPanel from './lib/components/HealthPanel.svelte';
 
   const bench = new Bench();
-  let tab = $state<'bench' | 'profiles'>('bench');
+  type Tab = 'bench' | 'profiles' | 'presets' | 'health';
+  let tab = $state<Tab>('bench');
+
+  const TABS: Array<{ id: Tab; label: string }> = [
+    { id: 'bench', label: 'Bench' },
+    { id: 'profiles', label: 'Profiles' },
+    { id: 'presets', label: 'Presets' },
+    { id: 'health', label: 'Health' },
+  ];
+
+  const devices = $derived(bench.snapshot?.devices ?? []);
 
   // `onMount` rather than `$effect`: the connection must be opened exactly once
   // for the life of the component. An effect would re-run if anything it
@@ -29,25 +41,25 @@
     {/if}
   </header>
 
-  <nav class="flex gap-2" aria-label="Sections">
-    <button
-      class="btn {tab === 'bench' ? 'preset-filled' : 'preset-tonal'}"
-      type="button"
-      onclick={() => (tab = 'bench')}
-    >
-      Bench
-    </button>
-    <button
-      class="btn {tab === 'profiles' ? 'preset-filled' : 'preset-tonal'}"
-      type="button"
-      onclick={() => (tab = 'profiles')}
-    >
-      Profiles
-    </button>
+  <nav class="flex flex-wrap gap-2" aria-label="Sections">
+    {#each TABS as entry (entry.id)}
+      <button
+        class="btn {tab === entry.id ? 'preset-filled' : 'preset-tonal'}"
+        type="button"
+        aria-current={tab === entry.id ? 'page' : undefined}
+        onclick={() => (tab = entry.id)}
+      >
+        {entry.label}
+      </button>
+    {/each}
   </nav>
 
   {#if tab === 'profiles'}
-    <ProfilesPanel />
+    <ProfilesPanel {devices} />
+  {:else if tab === 'presets'}
+    <PresetsPanel />
+  {:else if tab === 'health'}
+    <HealthPanel {devices} />
   {:else if bench.snapshot}
     <div class="space-y-8">
       {#each bench.snapshot.devices as device (device.slot)}
