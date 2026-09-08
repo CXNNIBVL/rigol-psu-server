@@ -101,8 +101,6 @@ export interface ChannelPreset {
   ovp_enabled: boolean;
   ocp_level: number;
   ocp_enabled: boolean;
-  /** Intended output state. An apply records it; only power-on acts on it. */
-  output_on: boolean;
 }
 
 export interface ProfileBinding {
@@ -112,6 +110,12 @@ export interface ProfileBinding {
   preset: ChannelPreset;
   sequence_order: number;
   delay_ms: number;
+  /**
+   * Whether power-on energises this rail. A property of how this profile uses
+   * the preset, not of the preset — the same settings can auto-start on one
+   * device and stay staged on another.
+   */
+  output_on: boolean;
 }
 
 export interface DeviceProfile {

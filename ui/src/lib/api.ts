@@ -70,6 +70,7 @@ export interface NewBinding {
   preset_id: number;
   sequence_order: number;
   delay_ms: number;
+  output_on: boolean;
 }
 
 export interface NewProfile {

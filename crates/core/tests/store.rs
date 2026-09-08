@@ -12,7 +12,6 @@ fn preset(name: &str, volt: f64) -> NewChannelPreset {
         ovp_enabled: true,
         ocp_level: 1.5,
         ocp_enabled: true,
-        output_on: true,
     }
 }
 
@@ -102,6 +101,7 @@ fn profiles_carry_their_bindings_in_power_up_order() {
                     preset_id: io.id,
                     sequence_order: 2,
                     delay_ms: 0,
+                    output_on: true,
                 },
                 NewProfileBinding {
                     slot: "psu1".into(),
@@ -109,6 +109,7 @@ fn profiles_carry_their_bindings_in_power_up_order() {
                     preset_id: core.id,
                     sequence_order: 1,
                     delay_ms: 50,
+                    output_on: true,
                 },
             ],
         })
@@ -139,6 +140,7 @@ fn a_channel_cannot_be_bound_twice_in_one_profile() {
                     preset_id: p.id,
                     sequence_order: 1,
                     delay_ms: 0,
+                    output_on: true,
                 },
                 NewProfileBinding {
                     slot: "psu1".into(),
@@ -146,6 +148,7 @@ fn a_channel_cannot_be_bound_twice_in_one_profile() {
                     preset_id: p.id,
                     sequence_order: 2,
                     delay_ms: 0,
+                    output_on: true,
                 },
             ],
         })
@@ -166,6 +169,7 @@ fn a_binding_to_a_missing_preset_is_refused() {
                 preset_id: 9999,
                 sequence_order: 1,
                 delay_ms: 0,
+                output_on: true,
             }],
         })
         .unwrap_err();
@@ -186,6 +190,7 @@ fn a_failed_profile_create_leaves_nothing_behind() {
             preset_id: 9999,
             sequence_order: 1,
             delay_ms: 0,
+            output_on: true,
         }],
     });
     assert!(s.profiles().unwrap().is_empty());
@@ -205,6 +210,7 @@ fn deleting_a_preset_in_use_is_refused() {
             preset_id: p.id,
             sequence_order: 1,
             delay_ms: 0,
+            output_on: true,
         }],
     })
     .unwrap();
@@ -229,6 +235,7 @@ fn deleting_a_profile_releases_its_presets() {
                 preset_id: p.id,
                 sequence_order: 1,
                 delay_ms: 0,
+                output_on: true,
             }],
         })
         .unwrap();
@@ -252,6 +259,7 @@ fn updating_a_profile_replaces_its_bindings_wholesale() {
                 preset_id: a.id,
                 sequence_order: 1,
                 delay_ms: 0,
+                output_on: true,
             }],
         })
         .unwrap();
@@ -268,6 +276,7 @@ fn updating_a_profile_replaces_its_bindings_wholesale() {
                     preset_id: b.id,
                     sequence_order: 1,
                     delay_ms: 0,
+                    output_on: true,
                 }],
             },
         )

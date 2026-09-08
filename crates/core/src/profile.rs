@@ -134,7 +134,9 @@ pub async fn power_on(
     preflight(&profile, &supervisor.snapshot(), true)?;
 
     for binding in &profile.bindings {
-        if !binding.preset.output_on {
+        // The binding decides, not the preset: the same settings may be
+        // auto-started by one profile and left staged by another.
+        if !binding.output_on {
             continue;
         }
         supervisor

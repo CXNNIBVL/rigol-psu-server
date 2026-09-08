@@ -69,7 +69,7 @@
           {rail.preset.name} &middot; {rail.preset.volt.toFixed(3)} V /
           {rail.preset.curr_limit.toFixed(3)} A
           {#if rail.delay_ms > 0}&middot; wait {rail.delay_ms} ms{/if}
-          {#if !rail.preset.output_on}&middot; staged only{/if}
+          {#if !rail.output_on}&middot; staged only{/if}
         </span>
       </li>
     {/each}

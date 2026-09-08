@@ -17,7 +17,13 @@ use dp832::{ChannelId, Protection, Setpoint};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../../../migrations/001_initial.sql"))];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, include_str!("../../../migrations/001_initial.sql")),
+    (
+        2,
+        include_str!("../../../migrations/002_output_on_per_binding.sql"),
+    ),
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -64,9 +70,6 @@ pub struct ChannelPreset {
     pub ovp_enabled: bool,
     pub ocp_level: f64,
     pub ocp_enabled: bool,
-    /// Intended output state. An apply records this and arms the UI; it never
-    /// energises anything by itself.
-    pub output_on: bool,
 }
 
 impl ChannelPreset {
@@ -97,8 +100,6 @@ pub struct NewChannelPreset {
     pub ovp_enabled: bool,
     pub ocp_level: f64,
     pub ocp_enabled: bool,
-    #[serde(default)]
-    pub output_on: bool,
 }
 
 /// One rail of a profile: which preset goes to which physical channel, and when.
@@ -111,6 +112,11 @@ pub struct ProfileBinding {
     pub preset: ChannelPreset,
     pub sequence_order: i64,
     pub delay_ms: i64,
+    /// Whether power-on energises this rail. A profile may legitimately carry a
+    /// rail it wants configured but brought up by hand — a programming voltage,
+    /// say — so this is a statement about how *this* profile uses the preset,
+    /// not about the preset itself.
+    pub output_on: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -123,6 +129,14 @@ pub struct NewProfileBinding {
     pub sequence_order: i64,
     #[serde(default)]
     pub delay_ms: i64,
+    /// Defaults to true: a rail named in a profile is normally one the profile
+    /// powers.
+    #[serde(default = "default_true")]
+    pub output_on: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// A named device, described as the set of rails it needs.
@@ -186,15 +200,37 @@ impl Store {
         let mut conn = self.conn.lock().unwrap();
         let current: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
 
-        for (version, sql) in MIGRATIONS {
-            if *version <= current {
-                continue;
+        let pending: Vec<&(i64, &str)> = MIGRATIONS.iter().filter(|(v, _)| *v > current).collect();
+        if pending.is_empty() {
+            return Ok(());
+        }
+
+        // Suspended for the duration: a migration that rebuilds a table has to
+        // drop and recreate a parent, which enforcement would reject, and the
+        // pragma cannot be changed inside a transaction. The result is checked
+        // explicitly below rather than assumed.
+        conn.pragma_update(None, "foreign_keys", "OFF")?;
+        let result = (|| -> Result<(), StoreError> {
+            for (version, sql) in pending {
+                let tx = conn.transaction()?;
+                tx.execute_batch(sql)?;
+                tx.pragma_update(None, "user_version", version)?;
+                tx.commit()?;
+                tracing::info!(version, "applied migration");
             }
-            let tx = conn.transaction()?;
-            tx.execute_batch(sql)?;
-            tx.pragma_update(None, "user_version", version)?;
-            tx.commit()?;
-            tracing::info!(version, "applied migration");
+            Ok(())
+        })();
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        result?;
+
+        let broken: i64 =
+            conn.query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                row.get(0)
+            })?;
+        if broken > 0 {
+            return Err(StoreError::Invalid(format!(
+                "migration left {broken} dangling reference(s); refusing to continue"
+            )));
         }
         Ok(())
     }
@@ -205,7 +241,7 @@ impl Store {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, name, volt, curr_limit, ovp_level, ovp_enabled, \
-             ocp_level, ocp_enabled, output_on FROM channel_presets ORDER BY name",
+             ocp_level, ocp_enabled FROM channel_presets ORDER BY name",
         )?;
         let rows = stmt
             .query_map([], preset_from_row)?
@@ -217,7 +253,7 @@ impl Store {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
             "SELECT id, name, volt, curr_limit, ovp_level, ovp_enabled, \
-             ocp_level, ocp_enabled, output_on FROM channel_presets WHERE id = ?1",
+             ocp_level, ocp_enabled FROM channel_presets WHERE id = ?1",
             params![id],
             preset_from_row,
         )
@@ -230,8 +266,8 @@ impl Store {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT INTO channel_presets \
-             (name, volt, curr_limit, ovp_level, ovp_enabled, ocp_level, ocp_enabled, output_on) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+             (name, volt, curr_limit, ovp_level, ovp_enabled, ocp_level, ocp_enabled) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 new.name,
                 new.volt,
@@ -239,8 +275,7 @@ impl Store {
                 new.ovp_level,
                 new.ovp_enabled,
                 new.ocp_level,
-                new.ocp_enabled,
-                new.output_on
+                new.ocp_enabled
             ],
         )
         .map_err(|e| duplicate_or(e, "preset", &new.name))?;
@@ -259,8 +294,8 @@ impl Store {
         let changed = conn
             .execute(
                 "UPDATE channel_presets SET name = ?2, volt = ?3, curr_limit = ?4, \
-                 ovp_level = ?5, ovp_enabled = ?6, ocp_level = ?7, ocp_enabled = ?8, \
-                 output_on = ?9 WHERE id = ?1",
+                 ovp_level = ?5, ovp_enabled = ?6, ocp_level = ?7, ocp_enabled = ?8 \
+                 WHERE id = ?1",
                 params![
                     id,
                     new.name,
@@ -269,8 +304,7 @@ impl Store {
                     new.ovp_level,
                     new.ovp_enabled,
                     new.ocp_level,
-                    new.ocp_enabled,
-                    new.output_on
+                    new.ocp_enabled
                 ],
             )
             .map_err(|e| duplicate_or(e, "preset", &new.name))?;
@@ -332,9 +366,9 @@ impl Store {
             })?;
 
         let mut stmt = conn.prepare(
-            "SELECT b.id, b.slot, b.channel, b.sequence_order, b.delay_ms, \
+            "SELECT b.id, b.slot, b.channel, b.sequence_order, b.delay_ms, b.output_on, \
                     p.id, p.name, p.volt, p.curr_limit, p.ovp_level, p.ovp_enabled, \
-                    p.ocp_level, p.ocp_enabled, p.output_on \
+                    p.ocp_level, p.ocp_enabled \
              FROM profile_bindings b JOIN channel_presets p ON p.id = b.preset_id \
              WHERE b.profile_id = ?1 ORDER BY b.sequence_order, b.slot, b.channel",
         )?;
@@ -349,16 +383,16 @@ impl Store {
                         channel: ChannelId::Ch1, // replaced below
                         sequence_order: row.get(3)?,
                         delay_ms: row.get(4)?,
+                        output_on: row.get(5)?,
                         preset: ChannelPreset {
-                            id: row.get(5)?,
-                            name: row.get(6)?,
-                            volt: row.get(7)?,
-                            curr_limit: row.get(8)?,
-                            ovp_level: row.get(9)?,
-                            ovp_enabled: row.get(10)?,
-                            ocp_level: row.get(11)?,
-                            ocp_enabled: row.get(12)?,
-                            output_on: row.get(13)?,
+                            id: row.get(6)?,
+                            name: row.get(7)?,
+                            volt: row.get(8)?,
+                            curr_limit: row.get(9)?,
+                            ovp_level: row.get(10)?,
+                            ovp_enabled: row.get(11)?,
+                            ocp_level: row.get(12)?,
+                            ocp_enabled: row.get(13)?,
                         },
                     },
                 ))
@@ -459,15 +493,16 @@ fn write_bindings(
         }
         tx.execute(
             "INSERT INTO profile_bindings \
-             (profile_id, slot, channel, preset_id, sequence_order, delay_ms) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+             (profile_id, slot, channel, preset_id, sequence_order, delay_ms, output_on) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 profile_id,
                 binding.slot,
                 channel.as_scpi(),
                 binding.preset_id,
                 binding.sequence_order,
-                binding.delay_ms
+                binding.delay_ms,
+                binding.output_on
             ],
         )
         .map_err(|e| match &e {
@@ -496,7 +531,6 @@ fn preset_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ChannelPreset> {
         ovp_enabled: row.get(5)?,
         ocp_level: row.get(6)?,
         ocp_enabled: row.get(7)?,
-        output_on: row.get(8)?,
     })
 }
 

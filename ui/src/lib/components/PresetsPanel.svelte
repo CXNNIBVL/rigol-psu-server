@@ -26,7 +26,6 @@
       ovp_enabled: false,
       ocp_level: 0,
       ocp_enabled: false,
-      output_on: true,
     };
   }
 
@@ -148,18 +147,10 @@
         </label>
       </div>
 
-      <label class="flex items-start gap-2 text-sm">
-        <input class="checkbox mt-1" type="checkbox" bind:checked={form.output_on} />
-        <span>
-          Energise this rail on power-on
-          <!-- Worth spelling out: the flag is intent, not an instruction.
-               Applying a profile never switches anything on. -->
-          <span class="block opacity-60">
-            Applying a profile only stages settings. This decides whether the rail
-            comes up when you press Power on.
-          </span>
-        </span>
-      </label>
+      <p class="text-xs opacity-60">
+        Whether a rail comes up on power-on is decided per profile, not here — the
+        same preset can auto-start on one device and stay staged on another.
+      </p>
 
       <div class="flex gap-2">
         <button class="btn preset-filled-primary-500" type="submit" disabled={busy || !form.name}>
@@ -188,7 +179,6 @@
               {preset.volt.toFixed(3)} V / {preset.curr_limit.toFixed(3)} A
               {#if preset.ovp_enabled}&middot; OVP {preset.ovp_level.toFixed(3)} V{/if}
               {#if preset.ocp_enabled}&middot; OCP {preset.ocp_level.toFixed(3)} A{/if}
-              &middot; {preset.output_on ? 'energises on power-on' : 'staged only'}
             </p>
           </div>
           <div class="flex gap-2">

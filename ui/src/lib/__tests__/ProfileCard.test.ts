@@ -14,7 +14,6 @@ function preset(over: Partial<ChannelPreset> = {}): ChannelPreset {
     ovp_enabled: true,
     ocp_level: 1.2,
     ocp_enabled: true,
-    output_on: true,
     ...over,
   };
 }
@@ -32,14 +31,17 @@ function profile(): DeviceProfile {
         preset: preset(),
         sequence_order: 1,
         delay_ms: 150,
+        output_on: true,
       },
       {
         id: 2,
         slot: 'psu1',
         channel: 'CH2',
-        preset: preset({ id: 2, name: 'io 3v3', volt: 3.3, output_on: false }),
+        preset: preset({ id: 2, name: 'io 3v3', volt: 3.3 }),
         sequence_order: 2,
         delay_ms: 0,
+        // Staged by this profile, not energised — a decision of the binding.
+        output_on: false,
       },
     ],
   };
@@ -75,7 +77,7 @@ describe('ProfileCard', () => {
     expect(card).toHaveTextContent('wait 150 ms');
   });
 
-  it('marks a rail the profile does not energise', () => {
+  it('marks a rail this profile stages but does not energise', () => {
     render(ProfileCard, { profile: profile() });
     expect(screen.getByTestId('profile-7')).toHaveTextContent('staged only');
   });

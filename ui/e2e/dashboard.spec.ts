@@ -133,7 +133,6 @@ test.describe('profiles', () => {
         ovp_enabled: true,
         ocp_level: 1.2,
         ocp_enabled: true,
-        output_on: true,
       },
     });
     const coreId = (await core.json()).id;
@@ -274,7 +273,6 @@ test.describe('authoring', () => {
       data: {
         name: `in use ${stamp}`, volt: 1.0, curr_limit: 1.0,
         ovp_level: 1.5, ovp_enabled: false, ocp_level: 1.5, ocp_enabled: false,
-        output_on: true,
       },
     });
     const presetId = (await preset.json()).id;

@@ -105,7 +105,7 @@ async fn wait_ready(b: &Bench) {
     }
 }
 
-fn preset(store: &Store, name: &str, volt: f64, on: bool) -> i64 {
+fn preset(store: &Store, name: &str, volt: f64) -> i64 {
     store
         .create_preset(&NewChannelPreset {
             name: name.into(),
@@ -115,7 +115,6 @@ fn preset(store: &Store, name: &str, volt: f64, on: bool) -> i64 {
             ovp_enabled: true,
             ocp_level: 1.5,
             ocp_enabled: true,
-            output_on: on,
         })
         .unwrap()
         .id
@@ -133,12 +132,25 @@ fn profile(store: &Store, name: &str, bindings: Vec<NewProfileBinding>) -> i64 {
 }
 
 fn binding(slot: &str, channel: &str, preset_id: i64, order: i64, delay: i64) -> NewProfileBinding {
+    powered(slot, channel, preset_id, order, delay, true)
+}
+
+/// A binding that spells out whether power-on energises it.
+fn powered(
+    slot: &str,
+    channel: &str,
+    preset_id: i64,
+    order: i64,
+    delay: i64,
+    output_on: bool,
+) -> NewProfileBinding {
     NewProfileBinding {
         slot: slot.into(),
         channel: channel.into(),
         preset_id,
         sequence_order: order,
         delay_ms: delay,
+        output_on,
     }
 }
 
@@ -148,7 +160,7 @@ async fn applying_stages_setpoints_without_energising_anything() {
     let b = bench();
     wait_ready(&b).await;
 
-    let p = preset(&b.store, "3v3", 3.3, true);
+    let p = preset(&b.store, "3v3", 3.3);
     let id = profile(&b.store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
 
     apply(&b.store, &b.supervisor, id, false).await.unwrap();
@@ -181,14 +193,14 @@ async fn powering_on_energises_only_the_rails_the_profile_marks_on() {
     let b = bench();
     wait_ready(&b).await;
 
-    let on = preset(&b.store, "on", 3.3, true);
-    let off = preset(&b.store, "staged only", 5.0, false);
+    let on = preset(&b.store, "on", 3.3);
+    let off = preset(&b.store, "staged only", 5.0);
     let id = profile(
         &b.store,
         "Board",
         vec![
-            binding("psu1", "CH1", on, 1, 0),
-            binding("psu1", "CH2", off, 2, 0),
+            powered("psu1", "CH1", on, 1, 0, true),
+            powered("psu1", "CH2", off, 2, 0, false),
         ],
     );
 
@@ -208,8 +220,8 @@ async fn power_up_honours_the_sequence_delay() {
     let b = bench();
     wait_ready(&b).await;
 
-    let core = preset(&b.store, "core", 1.2, true);
-    let io = preset(&b.store, "io", 3.3, true);
+    let core = preset(&b.store, "core", 1.2);
+    let io = preset(&b.store, "io", 3.3);
     let id = profile(
         &b.store,
         "Sequenced",
@@ -239,7 +251,7 @@ async fn applying_over_a_live_channel_is_refused_but_forceable() {
         .await
         .unwrap();
 
-    let p = preset(&b.store, "3v3", 3.3, true);
+    let p = preset(&b.store, "3v3", 3.3);
     let id = profile(&b.store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
 
     let deadline = Instant::now() + Duration::from_secs(2);
@@ -274,7 +286,7 @@ async fn force_does_not_override_a_clamp() {
     wait_ready(&b).await;
 
     // CH1 is clamped at 5.5 V.
-    let p = preset(&b.store, "too much", 12.0, true);
+    let p = preset(&b.store, "too much", 12.0);
     let id = profile(&b.store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
 
     for force in [false, true] {
@@ -293,7 +305,7 @@ async fn a_profile_spanning_an_offline_supply_is_refused_outright() {
     let b = bench();
     wait_ready(&b).await;
 
-    let p = preset(&b.store, "3v3", 3.3, true);
+    let p = preset(&b.store, "3v3", 3.3);
     let id = profile(
         &b.store,
         "Spanning",
@@ -334,8 +346,8 @@ async fn nothing_is_written_when_one_binding_fails_validation() {
     let b = bench();
     wait_ready(&b).await;
 
-    let good = preset(&b.store, "good", 3.3, true);
-    let bad = preset(&b.store, "bad", 12.0, true); // CH3 is clamped at 5 V
+    let good = preset(&b.store, "good", 3.3);
+    let bad = preset(&b.store, "bad", 12.0); // CH3 is clamped at 5 V
     let id = profile(
         &b.store,
         "Board",
@@ -383,7 +395,7 @@ async fn an_empty_profile_is_refused() {
 async fn a_profile_bound_to_an_unconfigured_slot_is_refused() {
     let b = bench();
     wait_ready(&b).await;
-    let p = preset(&b.store, "3v3", 3.3, true);
+    let p = preset(&b.store, "3v3", 3.3);
     let id = profile(&b.store, "Ghost", vec![binding("psu9", "CH1", p, 1, 0)]);
     assert_eq!(
         apply(&b.store, &b.supervisor, id, false)
@@ -400,7 +412,7 @@ async fn powering_off_switches_every_rail_off() {
     let b = bench();
     wait_ready(&b).await;
 
-    let p = preset(&b.store, "3v3", 3.3, true);
+    let p = preset(&b.store, "3v3", 3.3);
     let id = profile(
         &b.store,
         "Board",
@@ -428,7 +440,7 @@ async fn powering_off_still_reaches_the_supplies_it_can() {
     let b = bench();
     wait_ready(&b).await;
 
-    let p = preset(&b.store, "3v3", 3.3, true);
+    let p = preset(&b.store, "3v3", 3.3);
     let id = profile(
         &b.store,
         "Spanning",
@@ -482,7 +494,7 @@ async fn a_quarantined_supply_blocks_a_profile() {
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
 
-    let p = preset(&store, "3v3", 3.3, true);
+    let p = preset(&store, "3v3", 3.3);
     let id = profile(&store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
 
     for force in [false, true] {
@@ -492,4 +504,80 @@ async fn a_quarantined_supply_blocks_a_profile() {
     }
 
     supervisor.shutdown().await;
+}
+
+#[tokio::test]
+async fn one_preset_can_auto_start_in_one_profile_and_stay_staged_in_another() {
+    // The reason `output_on` moved from the preset to the binding. Before, the
+    // two profiles below would have needed two near-identical presets, which is
+    // the duplication presets exist to prevent.
+    let b = bench();
+    wait_ready(&b).await;
+
+    let shared = preset(&b.store, "3v3", 3.3);
+    let auto = profile(
+        &b.store,
+        "Mainboard",
+        vec![powered("psu1", "CH1", shared, 1, 0, true)],
+    );
+    let manual = profile(
+        &b.store,
+        "Sensor board",
+        vec![powered("psu2", "CH1", shared, 1, 0, false)],
+    );
+
+    apply(&b.store, &b.supervisor, auto, false).await.unwrap();
+    power_on(&b.store, &b.supervisor, auto).await.unwrap();
+    assert!(b.sims["psu1"].output_state(ChannelId::Ch1));
+
+    apply(&b.store, &b.supervisor, manual, false).await.unwrap();
+    power_on(&b.store, &b.supervisor, manual).await.unwrap();
+    assert!(
+        !b.sims["psu2"].output_state(ChannelId::Ch1),
+        "the same preset must stay staged where the profile says so"
+    );
+
+    b.supervisor.shutdown().await;
+}
+
+#[tokio::test]
+async fn an_existing_database_keeps_powering_up_the_way_it_did() {
+    // The migration backfills each binding from the preset it points at, so a
+    // profile written before the change must behave identically afterwards.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("data.db");
+
+    {
+        // A v1 database, written by hand as the old schema had it.
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(include_str!("../../../migrations/001_initial.sql"))
+            .unwrap();
+        conn.pragma_update(None, "user_version", 1).unwrap();
+        conn.execute(
+            "INSERT INTO channel_presets (id, name, volt, curr_limit, ovp_level, \
+             ovp_enabled, ocp_level, ocp_enabled, output_on) \
+             VALUES (1, 'auto', 3.3, 1.0, 3.6, 1, 1.2, 1, 1), \
+                    (2, 'manual', 5.0, 1.0, 5.5, 1, 1.2, 1, 0)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO device_profiles (id, name, description) VALUES (1, 'Board', '')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO profile_bindings \
+             (profile_id, slot, channel, preset_id, sequence_order, delay_ms) \
+             VALUES (1, 'psu1', 'CH1', 1, 1, 0), (1, 'psu1', 'CH2', 2, 2, 0)",
+            [],
+        )
+        .unwrap();
+    }
+
+    let store = Store::open(&path).expect("migration should run");
+    let profile = store.profile(1).unwrap();
+
+    assert!(profile.bindings[0].output_on, "was auto-starting before");
+    assert!(!profile.bindings[1].output_on, "was staged-only before");
 }

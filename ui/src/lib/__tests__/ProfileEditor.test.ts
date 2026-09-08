@@ -8,11 +8,11 @@ import type { ChannelPreset } from '../types';
 const PRESETS: ChannelPreset[] = [
   {
     id: 1, name: 'core 1v2', volt: 1.2, curr_limit: 1.0,
-    ovp_level: 1.5, ovp_enabled: true, ocp_level: 1.2, ocp_enabled: true, output_on: true,
+    ovp_level: 1.5, ovp_enabled: true, ocp_level: 1.2, ocp_enabled: true,
   },
   {
     id: 2, name: 'too much', volt: 12.0, curr_limit: 1.0,
-    ovp_level: 12.5, ovp_enabled: true, ocp_level: 1.2, ocp_enabled: true, output_on: true,
+    ovp_level: 12.5, ovp_enabled: true, ocp_level: 1.2, ocp_enabled: true,
   },
 ];
 
@@ -119,7 +119,7 @@ describe('ProfileEditor', () => {
         name: 'Mainboard',
         description: 'core first',
         bindings: [
-          { id: 1, slot: 'psu1', channel: 'CH2', preset: PRESETS[0]!, sequence_order: 4, delay_ms: 90 },
+          { id: 1, slot: 'psu1', channel: 'CH2', preset: PRESETS[0]!, sequence_order: 4, delay_ms: 90, output_on: true },
         ],
       },
     });
@@ -136,5 +136,34 @@ describe('ProfileEditor', () => {
     await ready();
     expect(screen.getByText(/no supplies are visible/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add rail' })).toBeDisabled();
+  });
+
+  it('sends a rail as energised by default', async () => {
+    let sent: any = null;
+    mockApi((body) => (sent = body));
+    render(ProfileEditor, { devices: DEVICES });
+    await ready();
+
+    await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(sent.bindings[0].output_on).toBe(true);
+  });
+
+  it('can stage a rail without energising it', async () => {
+    // The point of moving output_on onto the binding: the same preset can be
+    // auto-started by one profile and staged by another.
+    let sent: any = null;
+    mockApi((body) => (sent = body));
+    render(ProfileEditor, { devices: DEVICES });
+    await ready();
+
+    await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+    await userEvent.click(screen.getByLabelText('Rail 1 energise on power-on'));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(sent.bindings[0].output_on).toBe(false);
   });
 });

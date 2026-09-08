@@ -31,6 +31,7 @@
       preset_id: b.preset.id,
       sequence_order: b.sequence_order,
       delay_ms: b.delay_ms,
+      output_on: b.output_on,
     })) ?? [],
   );
   let error = $state<string | null>(null);
@@ -54,6 +55,8 @@
         preset_id: presets[0]?.id ?? 0,
         sequence_order: bindings.length + 1,
         delay_ms: 0,
+        // A rail named in a profile is normally one the profile powers.
+        output_on: true,
       },
     ];
   }
@@ -202,6 +205,16 @@
             />
           </label>
 
+          <label class="flex items-center gap-2 text-sm pb-2">
+            <input
+              class="checkbox"
+              type="checkbox"
+              aria-label="Rail {index + 1} energise on power-on"
+              bind:checked={bindings[index]!.output_on}
+            />
+            <span>Energise</span>
+          </label>
+
           <button
             class="btn btn-sm preset-tonal-error"
             type="button"
@@ -222,7 +235,8 @@
     {#if bindings.length > 1}
       <p class="text-xs opacity-60">
         Rails come up in ascending order. The dwell is the pause <em>after</em> that rail
-        is switched on, before the next one.
+        is switched on, before the next one. Unticking <em>Energise</em> stages the rail's
+        settings without bringing it up.
       </p>
     {/if}
   </div>

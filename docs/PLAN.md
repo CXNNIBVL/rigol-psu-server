@@ -332,7 +332,6 @@ ChannelPreset            — the primitive
     volt, curr_limit
     ovp_level, ovp_enabled
     ocp_level, ocp_enabled
-    output_on             — intent only, see §9.2
 
 DeviceProfile            — a named DUT, composed of presets
     id, name, description
@@ -343,7 +342,18 @@ ProfileBinding           — one rail of a profile
     preset_id
     order                 — power-up sequence position
     delay_ms              — dwell after this rail comes up
+    output_on             — does power-on energise this rail? intent only, §9.2
 ```
+
+`output_on` sits on the **binding**, not the preset. It first went on the preset,
+which made "does this rail come up on power-on" a property of the settings
+rather than of how a profile uses them — so a preset shared by two profiles had
+to auto-start in both. Wanting 3v3 to come up automatically on a mainboard but
+stay staged on a sensor board meant two near-identical presets, which is exactly
+the duplication presets exist to prevent. It belongs beside `order` and
+`delay_ms`, which are already statements about how *this profile* powers *this
+rail*. Migration `002` moves it and backfills from each binding's preset, so
+profiles written before the change power up identically after it.
 
 `order` and `delay_ms` are stored from day one even if always left at defaults.
 Rail sequencing matters for devices whose supplies must come up in a defined order,
