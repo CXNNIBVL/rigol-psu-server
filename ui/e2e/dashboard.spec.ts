@@ -365,4 +365,33 @@ test.describe('navigation rail', () => {
       timeout: 10_000,
     });
   });
+
+  test('spans the viewport and stays put while the page scrolls', async ({ page }) => {
+    // The rail's stylesheet sets height: 100%, which resolves against its
+    // parent — so without a definite height on the rail itself it collapsed to
+    // the height of its items and left the rest of the column empty.
+    await page.goto('/');
+    const rail = page.locator('[data-part="root"][data-layout="rail"]');
+
+    const viewport = page.viewportSize()!.height;
+    const before = (await rail.boundingBox())!;
+    expect(before.height).toBeCloseTo(viewport, -1);
+
+    // And it is sticky, so a long bench scrolls past rather than under it.
+    await page.evaluate(() => window.scrollTo(0, 600));
+    const after = (await rail.boundingBox())!;
+    expect(after.y).toBeCloseTo(0, -1);
+    expect(await rail.getByText('Bench').isVisible()).toBe(true);
+  });
+
+  test('every section has its own glyph', async ({ page }) => {
+    // Two sections sharing a shape read as one icon at a glance, which is
+    // worse than having none.
+    await page.goto('/');
+    const shapes = await page.locator('[data-part="menu"] svg').evaluateAll((svgs) =>
+      svgs.map((svg) => svg.innerHTML.replace(/<!--.*?-->/g, '').trim()),
+    );
+    expect(shapes).toHaveLength(4);
+    expect(new Set(shapes).size).toBe(4);
+  });
 });

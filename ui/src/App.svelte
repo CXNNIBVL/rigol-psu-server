@@ -41,7 +41,16 @@
 </script>
 
 <div class="flex min-h-screen">
-  <Navigation layout="rail" class="shrink-0">
+  <!--
+    `h-screen` rather than leaning on the flex container: the rail's own stylesheet
+    sets `height: 100%`, which resolves against the parent — and `min-h-screen`
+    gives no definite height to resolve against, so the panel collapsed to the
+    height of its four items and left a gap down the rest of the page.
+
+    `sticky` follows from that: once it is exactly one viewport tall, it should
+    stay put while a long bench scrolls past it.
+  -->
+  <Navigation layout="rail" class="shrink-0 sticky top-0 h-screen">
     <Navigation.Header>
       <span class="font-bold text-lg" title="PSU Bench">PSU</span>
     </Navigation.Header>
