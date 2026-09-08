@@ -226,7 +226,7 @@
           <span class="text-xs font-semibold opacity-70">Rail {index + 1}</span>
           <div class="flex gap-1">
             <button
-              class="btn-icon btn-icon-sm opacity-70 hover:opacity-100"
+              class="btn-icon btn-icon-lg opacity-70 hover:opacity-100"
               type="button"
               aria-label="Move rail {index + 1} earlier"
               disabled={index === 0}
@@ -235,7 +235,7 @@
               ↑
             </button>
             <button
-              class="btn-icon btn-icon-sm opacity-70 hover:opacity-100"
+              class="btn-icon btn-icon-lg opacity-70 hover:opacity-100"
               type="button"
               aria-label="Move rail {index + 1} later"
               disabled={index === bindings.length - 1}

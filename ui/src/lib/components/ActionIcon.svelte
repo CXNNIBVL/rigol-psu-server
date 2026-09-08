@@ -40,7 +40,7 @@
 
 <button
   type="button"
-  class="btn-icon btn-icon-sm opacity-70 hover:opacity-100 transition-colors {TONE[action]}"
+  class="btn-icon btn-icon-lg opacity-70 hover:opacity-100 transition-colors {TONE[action]}"
   aria-label={label}
   title={title ?? label}
   {disabled}
@@ -49,7 +49,7 @@
   data-action={action}
 >
   <svg
-    class="size-4"
+    class="size-5"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"

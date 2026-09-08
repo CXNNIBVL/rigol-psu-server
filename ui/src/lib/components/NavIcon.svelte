@@ -12,7 +12,7 @@
 </script>
 
 <svg
-  class="size-5"
+  class="size-6"
   viewBox="0 0 24 24"
   fill="none"
   stroke="currentColor"

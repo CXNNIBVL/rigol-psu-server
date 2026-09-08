@@ -47,12 +47,12 @@
   <header class="flex items-center justify-between gap-4">
     <h3 class="h4">{title}</h3>
     <button
-      class="btn-icon btn-icon-sm opacity-70 hover:opacity-100"
+      class="btn-icon btn-icon-lg opacity-70 hover:opacity-100"
       type="button"
       aria-label="Close"
       onclick={onclose}
     >
-      <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+      <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
         <path d="M6 6l12 12M18 6L6 18" />
       </svg>
     </button>
