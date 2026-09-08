@@ -44,11 +44,6 @@
     collapsed to the height of its items. `sticky` follows from that.
   -->
   <Navigation layout="rail" class="shrink-0 sticky top-0 h-screen">
-    <Navigation.Header>
-      <span class="font-bold text-lg" title="PSU Bench">PSU</span>
-      <hr class="hr mt-2" />
-    </Navigation.Header>
-
     <Navigation.Content>
       <Navigation.Menu>
         {#each TABS as entry (entry.id)}
