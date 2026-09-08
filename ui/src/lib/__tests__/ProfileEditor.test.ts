@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import ProfileEditor from '../components/ProfileEditor.svelte';
 import { channel, device } from './fixtures';
@@ -59,15 +59,34 @@ describe('ProfileEditor', () => {
     expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
   });
 
-  it('offers only configured channels, with their limits shown', async () => {
+  it('offers only configured channels, grouped by their supply', async () => {
+    // The supply name appears once per row rather than once per option, so the
+    // list grows a row per supply instead of a line per channel.
     mockApi();
     render(ProfileEditor, { devices: DEVICES });
     await ready();
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
 
-    const select = screen.getByLabelText('Rail 1 channel');
-    expect(select).toHaveTextContent('Left · CH1 (max 5.5 V / 2.0 A)');
-    expect(select).toHaveTextContent('Left · CH2 (max 15.0 V / 3.0 A)');
+    expect(screen.getByRole('radio', { name: 'Left CH1' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Left CH2' })).toBeInTheDocument();
+    // Its limits, stated once for what is selected.
+    expect(screen.getByText(/Limit 5\.5 V \/ 2 A/)).toBeInTheDocument();
+  });
+
+  it('cannot bind a channel another rail already uses', async () => {
+    mockApi();
+    render(ProfileEditor, { devices: DEVICES });
+    await ready();
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+
+    // Rail 2 took the next free channel rather than colliding with rail 1.
+    expect(screen.queryByTestId('binding-warning-1')).not.toBeInTheDocument();
+
+    // And rail 2 cannot reach back to rail 1's channel.
+    const railTwo = screen.getByTestId('binding-1');
+    const taken = within(railTwo).getByRole('radio', { name: 'Left CH1' });
+    expect(taken).toBeDisabled();
   });
 
   it('warns before submission when a preset exceeds the channel limit', async () => {
@@ -80,17 +99,6 @@ describe('ProfileEditor', () => {
     await userEvent.selectOptions(screen.getByLabelText('Rail 1 preset'), '2');
 
     expect(screen.getByTestId('binding-warning-0')).toHaveTextContent('exceeds');
-    expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
-  });
-
-  it('warns when one channel is bound twice', async () => {
-    mockApi();
-    render(ProfileEditor, { devices: DEVICES });
-    await ready();
-    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
-
-    expect(screen.getByTestId('binding-warning-0')).toHaveTextContent('more than once');
     expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
   });
 
@@ -177,7 +185,6 @@ describe('ProfileEditor', () => {
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
-    await userEvent.selectOptions(screen.getByLabelText('Rail 2 channel'), 'psu1/CH2');
 
     await userEvent.click(screen.getByLabelText('Move rail 2 earlier'));
     await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));

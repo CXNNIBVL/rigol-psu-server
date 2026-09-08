@@ -297,7 +297,7 @@ test.describe('authoring', () => {
     await page.getByTestId('new-profile').click();
     await page.getByLabel('Profile name').fill(`Doomed ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
-    await page.getByLabel('Rail 1 channel').selectOption('psu1/CH3');
+    await page.getByRole('radio', { name: 'Simulated supply 1 CH3' }).click();
     await page.getByLabel('Rail 1 preset').selectOption({ label: `too much ${stamp} (12.000 V)` });
 
     await expect(page.getByTestId('binding-warning-0')).toContainText('exceeds');
@@ -565,5 +565,39 @@ test.describe('lists', () => {
     await page.getByTestId('new-preset').click();
     await expect(page.getByLabel('Preset name')).toHaveValue('');
     await expect(page.getByLabel('Voltage')).toHaveValue('0');
+  });
+
+  test('the channel picker is laid out like the rack', async ({ page }) => {
+    // A flat dropdown repeated the supply name and the limits on every line and
+    // grew a line per channel; this grows a row per supply.
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+    await page.getByTestId('new-profile').click();
+    await page.getByRole('button', { name: 'Add rail' }).click();
+
+    const rail = page.getByTestId('binding-0');
+    await expect(rail.getByRole('radio')).toHaveCount(9);
+    // The supply's name is written once, not once per channel.
+    await expect(rail.getByText('Simulated supply 1', { exact: true })).toHaveCount(1);
+
+    await rail.getByRole('radio', { name: 'Simulated supply 2 CH3' }).click();
+    await expect(
+      rail.getByRole('radio', { name: 'Simulated supply 2 CH3' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    // Limits stated once, for whatever is selected.
+    await expect(rail).toContainText('Limit 5 V / 3 A');
+  });
+
+  test('a second rail does not land on the first one\'s channel', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+    await page.getByTestId('new-profile').click();
+    await page.getByRole('button', { name: 'Add rail' }).click();
+    await page.getByRole('button', { name: 'Add rail' }).click();
+
+    await expect(page.getByTestId('binding-warning-1')).toHaveCount(0);
+    await expect(
+      page.getByTestId('binding-1').getByRole('radio', { name: 'Simulated supply 1 CH1' }),
+    ).toBeDisabled();
   });
 });

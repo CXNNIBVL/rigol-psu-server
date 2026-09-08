@@ -9,6 +9,7 @@
   } from '../api';
   import { channelChoices, exceedsLimits, findChannel } from '../bench-info';
   import ActionIcon from './ActionIcon.svelte';
+  import ChannelPicker from './ChannelPicker.svelte';
   import type { ChannelPreset, DeviceProfile, DeviceView } from '../types';
 
   let {
@@ -59,7 +60,11 @@
   });
 
   function addBinding() {
-    const first = choices[0];
+    // The first channel nothing else has claimed. Defaulting to the very first
+    // one meant every rail after the first landed on a channel already in use
+    // and warned about it before the user had done anything.
+    const used = new Set(bindings.map((b) => `${b.slot}/${b.channel}`));
+    const first = choices.find((c) => !used.has(c.key)) ?? choices[0];
     bindings = [
       ...bindings,
       {
@@ -251,28 +256,26 @@
           </div>
         </div>
 
-        <div class="flex flex-wrap gap-2 items-end">
-          <label class="label grow min-w-56">
+        <div class="flex flex-wrap gap-4 items-start">
+          <div class="label grow">
             <span class="label-text text-xs">Channel</span>
-            <select
-              class="select"
-              aria-label="Rail {index + 1} channel"
-              value={`${binding.slot}/${binding.channel}`}
-              onchange={(e) => {
-                const [slot, channel] = e.currentTarget.value.split('/');
-                bindings[index] = { ...binding, slot: slot!, channel: channel! };
+            <ChannelPicker
+              {devices}
+              slot={binding.slot}
+              channel={binding.channel}
+              taken={new Set(
+                bindings
+                  .filter((_, i) => i !== index)
+                  .map((b) => `${b.slot}/${b.channel}`),
+              )}
+              label="Rail {index + 1} channel"
+              onSelect={(slot, channel) => {
+                bindings[index] = { ...binding, slot, channel: channel as typeof binding.channel };
               }}
-            >
-              {#each choices as choice (choice.key)}
-                <option value={choice.key}>
-                  {choice.label} · {choice.channel} (max
-                  {choice.limits.max_volt.toFixed(1)} V / {choice.limits.max_curr.toFixed(1)} A)
-                </option>
-              {/each}
-            </select>
-          </label>
+            />
+          </div>
 
-          <label class="label grow min-w-56">
+          <label class="label min-w-56">
             <span class="label-text text-xs">Settings</span>
             <select
               class="select"

@@ -625,6 +625,36 @@ meant re-finding the column each time.
 
 ---
 
+## 16. Picking a channel is not a list
+
+The rail editor chose its channel from a native dropdown: nine options, each
+repeating its supply's name and its limits, and one more line for every channel
+on every supply added.
+
+Choosing a rail is a **two-dimensional** decision — which supply, then which
+channel — and a flat list throws that structure away. It is now laid out the way
+the rack is: a row per supply, its three channels as chips.
+
+- The supply's name is written **once per row**, not once per option.
+- Limits are stated **once, for whatever is selected**, rather than on all nine
+  lines.
+- A channel another rail already claims is **visibly unavailable**, so the
+  double-binding rule is enforced by the control instead of explained by a
+  warning after the fact.
+- An unreachable supply is marked but still selectable — a profile may name a
+  supply that happens to be unplugged, and applying it is what refuses.
+- Six supplies are six short rows rather than eighteen lines of scrolling.
+
+Adding a rail now picks the first *free* channel too. Defaulting to the first
+channel outright meant every rail after the first landed on one already in use
+and warned about it before the user had done anything.
+
+The settings dropdown was left as a plain select. Its entries are distinct named
+things rather than repetitions of one another, so a list is the right shape for
+it; if it grows enough to need searching, that is a separate change.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the
