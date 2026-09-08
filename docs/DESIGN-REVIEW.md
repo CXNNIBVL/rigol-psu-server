@@ -580,6 +580,39 @@ to be open.
 
 ---
 
+## 15. One control per bit
+
+A channel's row carried a status dot beside a two-segment On/Off control. Both
+said the same thing — once as a reading, once as a choice — and the dot was
+pure duplication of the control immediately beside it.
+
+They are now a single power button, using IEC 5009, the symbol already on every
+instrument in the rack. Lit green when the rail is energised; outlined and quiet
+when it is not.
+
+**Not red for off.** Red on a power supply means a fault or a trip, and it is
+already this interface's destructive colour. A rail that is simply off is the
+safe resting state, so a bench at rest would have shown a wall of red buttons —
+crying wolf, and teaching everyone to discount the colour that matters. Neutral
+is the honest reading of "nothing is happening here".
+
+Two details the change forced, both improvements:
+
+- **The disabled direction is now precise.** The segmented control had to
+  disable its "on" half for a quarantined supply. A single button disables only
+  when a press *would energise* — so a quarantined rail that is already live can
+  still be switched off, which is the rule quarantine has always had.
+- **`aria-pressed` rather than a label that flips.** A toggle button that
+  renames itself between "On" and "Off" is ambiguous about whether it reports
+  the current state or the action a press performs. The name stays constant and
+  the pressed state reports; `mixed` covers a rail whose state is unknown.
+
+The first attempt filled the off state tonally, which on this background was
+close to invisible — the control stopped reading as a control. Outlined instead:
+quieter than a live rail, still obviously pressable.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

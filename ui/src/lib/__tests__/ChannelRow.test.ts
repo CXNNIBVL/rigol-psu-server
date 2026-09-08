@@ -31,36 +31,57 @@ describe('ChannelRow', () => {
       device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
       channel: unknownChannel(),
     });
-    expect(screen.queryByRole('radio', { name: 'On' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('radio', { name: 'Off' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'CH1 output' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('CH1 voltage')).not.toBeInTheDocument();
   });
 
   it('lets a quarantined supply be switched off but not on', () => {
-    // Quarantine blocks energising and nothing else, so only the "on" segment
-    // is refused — removing power must always stay available.
-    render(ChannelRow, {
-      device: device({ state: 'quarantined', reported_serial: 'X' } as never),
-      channel: channel(),
+    // Quarantine blocks energising and nothing else, so the button is only
+    // unavailable in the direction that would put energy into something.
+    const quarantined = device({ state: 'quarantined', reported_serial: 'X' } as never);
+
+    const { unmount } = render(ChannelRow, {
+      device: quarantined,
+      channel: channel({ output_on: true }),
     });
-    expect(screen.getByRole('radio', { name: 'On' })).toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Off' })).toBeEnabled();
+    // Already live: switching off must stay available.
+    expect(screen.getByRole('button', { name: 'CH1 output' })).toBeEnabled();
+    unmount();
+
+    render(ChannelRow, { device: quarantined, channel: channel({ output_on: false }) });
+    expect(screen.getByRole('button', { name: 'CH1 output' })).toBeDisabled();
   });
 
-  it('selects the segment matching the rail', () => {
-    render(ChannelRow, { device: device(), channel: channel({ output_on: true }) });
-    expect(screen.getByRole('radio', { name: 'On' })).toBeChecked();
+  it('reports the rail state as the button\'s pressed state', () => {
+    // `aria-pressed` rather than a label that flips between On and Off: a
+    // toggle that renames itself is ambiguous about whether it reports the
+    // current state or the action a press performs.
+    const { unmount } = render(ChannelRow, {
+      device: device(),
+      channel: channel({ output_on: true }),
+    });
+    expect(screen.getByRole('button', { name: 'CH1 output' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    unmount();
+
+    render(ChannelRow, { device: device(), channel: channel({ output_on: false }) });
+    expect(screen.getByRole('button', { name: 'CH1 output' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
-  it('selects neither segment when the rail state is unknown', () => {
-    // Defaulting to "Off" would assert something about a rail nobody can see.
-    // A quarantined supply is reachable, so the control is still present.
+  it('is neither pressed nor unpressed when the rail state is unknown', () => {
+    // Showing "off" would assert something about a rail nobody can see.
     render(ChannelRow, {
       device: device({ state: 'quarantined', reported_serial: 'X' } as never),
       channel: unknownChannel(),
     });
-    expect(screen.getByRole('radio', { name: 'On' })).not.toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Off' })).not.toBeChecked();
+    const button = screen.getByRole('button', { name: 'CH1 output' });
+    expect(button).toHaveAttribute('aria-pressed', 'mixed');
+    expect(button).toBeDisabled();
   });
 
   it('explains a limit violation instead of silently disabling the card', () => {
@@ -168,27 +189,23 @@ describe('ChannelRow', () => {
     expect(card.className).not.toContain('opacity');
   });
 
-  it('advertises the output state on the control, which is what the accent hooks onto', () => {
+  it('carries the accent only when the rail is energised', () => {
+    // Off is neutral, not red: red on a power supply means a fault, and a bench
+    // at rest would otherwise be a wall of red.
     const { unmount } = render(ChannelRow, {
       device: device(),
       channel: channel({ output_on: true }),
     });
-    expect(document.querySelector('[data-scope="radio-group"]')).toHaveAttribute(
-      'data-output',
-      'on',
-    );
+    let button = screen.getByRole('button', { name: 'CH1 output' });
+    expect(button).toHaveAttribute('data-state', 'on');
+    expect(button.className).toContain('success');
     unmount();
 
-    // No value at all when the rail's state is unknown, so nothing is accented.
-    // Quarantined rather than offline: an offline supply carries no control to
-    // inspect.
-    render(ChannelRow, {
-      device: device({ state: 'quarantined', reported_serial: 'X' } as never),
-      channel: unknownChannel(),
-    });
-    expect(document.querySelector('[data-scope="radio-group"]')).not.toHaveAttribute(
-      'data-output',
-    );
+    render(ChannelRow, { device: device(), channel: channel({ output_on: false }) });
+    button = screen.getByRole('button', { name: 'CH1 output' });
+    expect(button).toHaveAttribute('data-state', 'off');
+    expect(button.className).not.toContain('error');
+    expect(button.className).not.toContain('success');
   });
 
   it('does not repeat the supply-level reason on every channel', () => {

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { SegmentedControl } from '@skeletonlabs/skeleton-svelte';
   import type { ChannelView, DeviceView } from '../types';
   import {
     canEnergise,
@@ -13,6 +12,7 @@
   import { ApiFailure, setOutput, setSetpoint } from '../api';
   import StatusBadge from './StatusBadge.svelte';
   import ActionIcon from './ActionIcon.svelte';
+  import PowerButton from './PowerButton.svelte';
 
   let { device, channel }: { device: DeviceView; channel: ChannelView } = $props();
 
@@ -26,9 +26,10 @@
   const writable = $derived(isWritable(device, channel));
   const energisable = $derived(canEnergise(device, channel));
 
-  const outputValue = $derived(
-    channel.output_on === null ? '' : channel.output_on ? 'on' : 'off',
-  );
+  // Switching off is never blocked, whatever state the supply is in, so the
+  // button is only unavailable in the direction that would put energy into
+  // something.
+  const cannotToggle = $derived(channel.output_on !== true && !energisable);
 
   // The setpoint fields start from what the instrument reports and are only
   // "dirty" once someone actually changes them — so a value arriving from the
@@ -121,17 +122,7 @@
 >
 <tr class="border-t border-surface-200-800">
   <th scope="row" class="py-2 pr-3 text-left font-semibold whitespace-nowrap">
-    <span class="inline-flex items-center gap-2">
-      <!-- A live rail is marked on the row itself, so the accent survives at a
-           glance down a column of channels. -->
-      <span
-        class="inline-block size-2 rounded-full {presentation === 'live'
-          ? 'bg-success-500'
-          : 'bg-surface-400-600/40'}"
-        aria-hidden="true"
-      ></span>
-      {channel.id}
-    </span>
+    {channel.id}
   </th>
 
   <td class="reading py-2 px-3 text-right tabular-nums" data-testid="volt">
@@ -212,29 +203,16 @@
         <StatusBadge status={badge} />
       {/if}
       {#if device.state === 'offline'}
-        <!-- Nine greyed-out controls are nine things that cannot be done. The
-             badge already says why. -->
+        <!-- Nothing can be done with an unreachable supply, and the badge
+             already says why. -->
       {:else}
-      <SegmentedControl
-        value={outputValue}
-        onValueChange={(details) => toggle(details.value === 'on')}
-        disabled={busy}
-        aria-label="{channel.id} output"
-        data-output={outputValue || undefined}
-      >
-        <SegmentedControl.Control>
-          <SegmentedControl.Indicator />
-          <!-- Switching off is never blocked, whatever state the supply is in. -->
-          <SegmentedControl.Item value="off">
-            <SegmentedControl.ItemText>Off</SegmentedControl.ItemText>
-            <SegmentedControl.ItemHiddenInput />
-          </SegmentedControl.Item>
-          <SegmentedControl.Item value="on" disabled={!energisable}>
-            <SegmentedControl.ItemText>On</SegmentedControl.ItemText>
-            <SegmentedControl.ItemHiddenInput />
-          </SegmentedControl.Item>
-        </SegmentedControl.Control>
-      </SegmentedControl>
+        <PowerButton
+          on={channel.output_on}
+          disabled={cannotToggle}
+          {busy}
+          label="{channel.id} output"
+          onToggle={toggle}
+        />
       {/if}
     </div>
   </td>

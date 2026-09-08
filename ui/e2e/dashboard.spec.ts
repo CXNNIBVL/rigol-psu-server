@@ -12,19 +12,9 @@ async function injectFault(
   expect(response.ok()).toBeTruthy();
 }
 
-/**
- * The clickable half of a segmented control.
- *
- * The `radio` role resolves to zag's visually-hidden input, which the label
- * text sits on top of — so a click on the role is intercepted. Users click the
- * label, and so does this. State assertions still use the role, since that is
- * where `checked` and `disabled` live.
- */
-function segment(card: Locator, name: 'On' | 'Off'): Locator {
-  // `:text-is` normalises whitespace; the label's raw textContent carries a
-  // trailing newline from the component's markup, so an anchored regex on it
-  // never matches.
-  return card.locator(`label[data-part="item"]:has(span:text-is("${name}"))`);
+/** The one control that energises a rail. */
+function power(card: Locator): Locator {
+  return card.getByRole('button', { name: /output$/ });
 }
 
 test.afterEach(async ({ page }) => {
@@ -53,12 +43,12 @@ test('readings go live over the WebSocket', async ({ page }) => {
   // An idle rail reads as a dash, which is the point — so energise it and watch
   // a real measurement arrive.
   await expect(volt).toHaveText('—');
-  await segment(card, 'On').click();
+  await power(card).click();
 
   await expect(volt).toContainText('V');
   await expect(volt).not.toContainText('Unknown');
 
-  await segment(card, 'Off').click();
+  await power(card).click();
 });
 
 test('a setpoint within limits is applied and reflected back', async ({ page }) => {
@@ -107,12 +97,13 @@ test('switching a channel on and off changes how the card presents', async ({
   const card = page.getByTestId('channel-psu2-CH1');
   await expect(card).toHaveAttribute('data-state', 'off');
 
-  await segment(card, 'On').click();
+  await power(card).click();
   await expect(card).toHaveAttribute('data-state', 'live');
-  await expect(card.getByRole('radio', { name: 'On' })).toBeChecked();
+  await expect(power(card)).toHaveAttribute('aria-pressed', 'true');
 
-  await segment(card, 'Off').click();
+  await power(card).click();
   await expect(card).toHaveAttribute('data-state', 'off');
+  await expect(power(card)).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('a supply that stops answering shows Unknown, never zero', async ({ page }) => {
@@ -143,7 +134,7 @@ test('an offline supply explains itself and disables its controls', async ({ pag
 
   const card = page.getByTestId('channel-psu3-CH1');
   // No dead controls: there is nothing to be done with an unreachable supply.
-  await expect(card.getByRole('radio', { name: 'On' })).toHaveCount(0);
+  await expect(power(card)).toHaveCount(0);
   await expect(card.getByRole('button', { name: /Edit .* setpoint/ })).toHaveCount(0);
 });
 
@@ -472,20 +463,18 @@ test('a live rail and the selected section share one accent', async ({ page }) =
   // means almost but not quite the same thing.
   await page.goto('/');
   const card = page.getByTestId('channel-psu2-CH1');
-  await segment(card, 'On').click();
+  await power(card).click();
   await expect(card).toHaveAttribute('data-state', 'live');
 
-  const indicator = await card
-    .locator('[data-part="indicator"]')
-    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  const lit = await power(card).evaluate((el) => getComputedStyle(el).backgroundColor);
   const navIcon = await page
     .getByTestId('nav-bench')
     .locator('svg')
     .evaluate((el) => getComputedStyle(el).color);
 
-  expect(indicator).toBe(navIcon);
+  expect(lit).toBe(navIcon);
 
-  await segment(card, 'Off').click();
+  await power(card).click();
 });
 
 test.describe('lists', () => {

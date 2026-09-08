@@ -49,17 +49,7 @@
 	}
 }
 
-/* A channel that is on. The indicator is otherwise neutral, which makes "on"
-   and "off" look equally unremarkable — on a power supply they are not. */
-[data-scope='radio-group'][data-output='on'] {
-	& [data-part='indicator'] {
-		background: var(--color-success-500);
-	}
 
-	& [data-part='item-text'][data-state='checked'] {
-		color: var(--color-success-contrast-500);
-	}
-}
 
 /* Skeleton styles the collapsible's root and trigger but not its indicator, so
    the chevron sat still whether open or closed — a disclosure arrow that never
