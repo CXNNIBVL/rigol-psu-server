@@ -14,14 +14,17 @@ test-doc:
     cargo test --doc --all-features
 
 # Everything, the way CI runs it.
-test-all: test test-doc
+test-all: test test-doc test-ui test-e2e
 
 # Tests that require DP832s attached. Run this on the lab PC.
 test-hardware:
     cargo nextest run --profile hardware --all-features
 
+# Both feature configurations: a compile error must not be able to hide in the
+# non-default one.
 lint:
-    cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --all-targets -- -D warnings
+    cargo clippy --all-targets --features simulation -- -D warnings
 
 fmt:
     cargo fmt --all
@@ -39,4 +42,12 @@ build: build-ui
 
 # Run against simulated supplies — no hardware, no udev rules, no VPN.
 dev:
-    cargo run -p server -- --simulate 3 --bind 127.0.0.1:8080
+    cargo run -p server --features simulation -- --simulate 3 --bind 127.0.0.1:8080
+
+# UI component tests (Vitest).
+test-ui:
+    cd ui && npm run test
+
+# Browser end-to-end tests (Playwright) against a simulated server.
+test-e2e:
+    cd ui && npx playwright test

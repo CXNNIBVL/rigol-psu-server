@@ -558,6 +558,54 @@ Three profiles:
 Note that **nextest does not run doctests** — `just test-doc` covers those
 separately, and `just test-all` runs both.
 
+### 15.2 UI and end-to-end testing
+
+Three layers, at deliberately different weights.
+
+**Component tests — Vitest + `@testing-library/svelte`.** No browser, milliseconds
+per test. This is where display logic belongs: that a channel in `Unknown` renders
+as "Unknown" and never as `0.00 V`, that a clamp violation is shown as one, that
+the sequencing editor orders rails correctly.
+
+**End-to-end — Playwright against the real binary.** Playwright's `webServer`
+config launches `cargo run -p server -- --simulate 3` before the suite and tears
+it down afterwards, so the tests drive the actual stack — real server, real
+WebSocket, real SPA — with nothing mocked and no hardware attached. The simulator
+is what makes this cheap; without it, E2E would mean either a mocked API (testing
+a fiction) or a bench (untestable in CI).
+
+**Visual regression: deliberately not adopted.** A dashboard whose readings change
+every 500 ms is a snapshot-flake generator, and the effort would go into masking
+regions rather than catching defects.
+
+#### Fault injection, and how it is gated
+
+The UI states most worth testing are the ones that cannot be produced on demand: a
+supply going offline mid-session, a channel reading `Unknown`, a quarantine
+banner, a clamp violation on channels adopted after a restart. These are precisely
+the states §7.3, §8 and §14.1 exist for, and precisely the ones that rot silently,
+because in normal operation nobody ever sees them.
+
+Reaching them from a browser test requires a control surface over
+`SimulatedDp832::set_fault`, e.g. `POST /api/sim/{slot}/fault`. That is a useful
+test hook and a dangerous endpoint, so it is gated **twice**:
+
+1. **Compile-time**, behind a `simulation` Cargo feature. The release binary does
+   not contain the routes, and `--simulate` is not available in it either.
+2. **Runtime**, by refusing to mount the routes unless the server was actually
+   started in simulation mode.
+
+Belt-and-braces is warranted here. This server's entire safety posture rests on
+the API being unable to be talked into something dangerous, and an endpoint that
+fabricates instrument state deserves more than one lock — the feature flag keeps
+it out of the shipped artifact, and the runtime check means that even a
+simulation build cannot expose it while real supplies are attached.
+
+**The cost, stated plainly:** CI builds the workspace twice, and a compile error
+can hide in the non-default feature combination. `just lint` therefore checks both
+the default and the `simulation` feature sets, so the second configuration cannot
+quietly break.
+
 ---
 
 ## 16. Milestones
@@ -565,9 +613,12 @@ separately, and `just test-all` runs both.
 1. **M1 — Talk to a supply.** `dp832` crate: transport trait, SCPI codec, usbtmc
    implementation, simulator. Read `*IDN?` and `:MEASure:ALL?` from real hardware.
 2. **M2 — Server skeleton.** Config loading with fail-closed validation, per-PSU
-   actors, polling, `GET /api/state`, WebSocket snapshots. Runs against `--simulate 3`.
-3. **M3 — Dashboard.** Svelte SPA, live readouts, manual channel control, embedded and
-   served. First genuinely useful build.
+   actors, polling, `GET /api/state`, WebSocket snapshots. Runs against
+   `--simulate 3`, with the `simulation` feature and its fault-injection routes
+   (§15.2) established here so M3's E2E harness has something to drive.
+3. **M3 — Dashboard.** Svelte SPA on Skeleton/Cerberus, live readouts, manual
+   channel control, embedded and served. Vitest component tests and the Playwright
+   E2E harness land with it. First genuinely useful build.
 4. **M4 — Safety.** Clamps, quarantine, adoption on restart, clamp-violation freeze,
    `force` semantics, error taxonomy. Tested end-to-end against the simulator.
 5. **M5 — Presets and profiles.** SQLite, migrations, CRUD, staged apply, sequenced
