@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { ApiFailure, createProfile, listPresets, updateProfile, type NewBinding } from '../api';
+  import {
+    ApiFailure,
+    createPreset,
+    createProfile,
+    listPresets,
+    updateProfile,
+    type NewBinding,
+  } from '../api';
   import { channelChoices, exceedsLimits, findChannel } from '../bench-info';
   import type { ChannelPreset, DeviceProfile, DeviceView } from '../types';
 
@@ -15,10 +22,9 @@
 
   let presets = $state<ChannelPreset[]>([]);
 
-  // The form is seeded from `profile` once and then owned by the user; it must
-  // not be yanked back to server state mid-edit. Callers key this component on
-  // the profile id, so choosing a different profile remounts it with fresh
-  // seed values rather than mutating a form someone is typing into.
+  // The form is seeded from `profile` once and then owned by the user; callers
+  // key this component on the profile id, so choosing a different profile
+  // remounts it rather than yanking a form someone is typing into.
   // svelte-ignore state_referenced_locally
   let name = $state(profile?.name ?? '');
   // svelte-ignore state_referenced_locally
@@ -36,6 +42,12 @@
   );
   let error = $state<string | null>(null);
   let busy = $state(false);
+
+  // Inline preset creation. Without this, needing a preset that does not exist
+  // yet means leaving the editor and losing the profile in progress — a dead
+  // end on the main path of the feature.
+  let newPresetFor = $state<number | null>(null);
+  let draft = $state({ name: '', volt: 0, curr_limit: 1 });
 
   const choices = $derived(channelChoices(devices));
 
@@ -65,9 +77,53 @@
     (bindings = bindings.filter((_, i) => i !== index));
 
   /**
+   * Order is positional, not typed. A free number field allowed `1, 1, 1`,
+   * storing ties whose resolution was then incidental; the array's order is the
+   * sequence, and `sequence_order` is derived from it on save.
+   */
+  function move(index: number, by: -1 | 1) {
+    const target = index + by;
+    if (target < 0 || target >= bindings.length) return;
+    const next = [...bindings];
+    [next[index], next[target]] = [next[target]!, next[index]!];
+    bindings = next;
+  }
+
+  function startPreset(index: number) {
+    newPresetFor = index;
+    draft = { name: '', volt: 0, curr_limit: 1 };
+  }
+
+  async function savePreset() {
+    if (newPresetFor === null) return;
+    error = null;
+    busy = true;
+    try {
+      const created = await createPreset({
+        name: draft.name,
+        volt: Number(draft.volt),
+        curr_limit: Number(draft.curr_limit),
+        // Protection defaults follow the setpoint; they can be tuned in the
+        // preset library, and a preset with no protection is worse than one
+        // with a sensible starting point.
+        ovp_level: Number(draft.volt) * 1.1,
+        ovp_enabled: true,
+        ocp_level: Number(draft.curr_limit) * 1.1,
+        ocp_enabled: true,
+      });
+      presets = [...presets, created];
+      bindings[newPresetFor]!.preset_id = created.id;
+      newPresetFor = null;
+    } catch (e) {
+      error = e instanceof ApiFailure ? e.detail.message : String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  /**
    * Warnings the server would also raise, surfaced while the profile is being
-   * built rather than at submission. The server remains the authority — this
-   * only saves the user from constructing something certain to be refused.
+   * built rather than at submission. The server remains the authority.
    */
   const warnings = $derived(
     bindings.map((binding) => {
@@ -94,7 +150,11 @@
     error = null;
     busy = true;
     try {
-      const payload = { name, description, bindings };
+      const payload = {
+        name,
+        description,
+        bindings: bindings.map((b, index) => ({ ...b, sequence_order: index + 1 })),
+      };
       if (profile) {
         await updateProfile(profile.id, payload);
       } else {
@@ -117,14 +177,21 @@
 >
   <h3 class="h4">{profile ? `Edit ${profile.name}` : 'New profile'}</h3>
 
-  <div class="grid gap-2 md:grid-cols-2">
+  <div class="flex flex-wrap gap-4">
     <label class="label">
       <span class="label-text">Name</span>
-      <input class="input" type="text" bind:value={name} aria-label="Profile name" />
+      <!-- Field width is a signal about expected input; a name is not 600px of
+           name. -->
+      <input class="input w-72" type="text" bind:value={name} aria-label="Profile name" />
     </label>
-    <label class="label">
+    <label class="label grow">
       <span class="label-text">Description</span>
-      <input class="input" type="text" bind:value={description} aria-label="Profile description" />
+      <input
+        class="input max-w-md"
+        type="text"
+        bind:value={description}
+        aria-label="Profile description"
+      />
     </label>
   </div>
 
@@ -132,12 +199,17 @@
 
   <div class="space-y-2">
     <div class="flex items-center justify-between">
-      <h4 class="font-semibold">Rails</h4>
+      <div>
+        <h4 class="font-semibold">Power-up sequence</h4>
+        <p class="text-xs opacity-60">
+          Rails come up top to bottom. A dwell pauses before the next one starts.
+        </p>
+      </div>
       <button
         class="btn btn-sm preset-tonal"
         type="button"
         onclick={addBinding}
-        disabled={choices.length === 0 || presets.length === 0}
+        disabled={choices.length === 0}
       >
         Add rail
       </button>
@@ -147,14 +219,14 @@
       <p class="text-sm opacity-60">
         No supplies are visible yet, so there is nothing to bind to.
       </p>
-    {:else if presets.length === 0}
-      <p class="text-sm opacity-60">Create a preset first — a rail needs settings to apply.</p>
     {/if}
 
     {#each bindings as binding, index (index)}
       <div class="space-y-1" data-testid="binding-{index}">
         <div class="flex flex-wrap gap-2 items-end">
-          <label class="label grow">
+          <span class="reading text-xs opacity-50 w-4 pb-2 tabular-nums">{index + 1}</span>
+
+          <label class="label grow min-w-56">
             <span class="label-text text-xs">Channel</span>
             <select
               class="select"
@@ -174,26 +246,27 @@
             </select>
           </label>
 
-          <label class="label grow">
-            <span class="label-text text-xs">Preset</span>
-            <select class="select" aria-label="Rail {index + 1} preset" bind:value={bindings[index]!.preset_id}>
+          <label class="label grow min-w-56">
+            <span class="label-text text-xs">Settings</span>
+            <select
+              class="select"
+              aria-label="Rail {index + 1} preset"
+              value={binding.preset_id}
+              onchange={(e) => {
+                if (e.currentTarget.value === '__new') {
+                  startPreset(index);
+                } else {
+                  bindings[index]!.preset_id = Number(e.currentTarget.value);
+                }
+              }}
+            >
               {#each presets as preset (preset.id)}
                 <option value={preset.id}>
                   {preset.name} ({preset.volt.toFixed(3)} V)
                 </option>
               {/each}
+              <option value="__new">New settings…</option>
             </select>
-          </label>
-
-          <label class="label w-24">
-            <span class="label-text text-xs">Order</span>
-            <input
-              class="input"
-              type="number"
-              min="1"
-              aria-label="Rail {index + 1} order"
-              bind:value={bindings[index]!.sequence_order}
-            />
           </label>
 
           <label class="label w-28">
@@ -217,14 +290,75 @@
             <span>Energise</span>
           </label>
 
-          <button
-            class="btn btn-sm preset-tonal-error"
-            type="button"
-            onclick={() => removeBinding(index)}
-          >
-            Remove
-          </button>
+          <div class="flex gap-1 pb-1">
+            <button
+              class="btn btn-sm preset-tonal"
+              type="button"
+              aria-label="Move rail {index + 1} earlier"
+              disabled={index === 0}
+              onclick={() => move(index, -1)}
+            >
+              ↑
+            </button>
+            <button
+              class="btn btn-sm preset-tonal"
+              type="button"
+              aria-label="Move rail {index + 1} later"
+              disabled={index === bindings.length - 1}
+              onclick={() => move(index, 1)}
+            >
+              ↓
+            </button>
+            <button
+              class="btn btn-sm hover:preset-tonal-error"
+              type="button"
+              aria-label="Remove rail {index + 1}"
+              onclick={() => removeBinding(index)}
+            >
+              Remove
+            </button>
+          </div>
         </div>
+
+        {#if newPresetFor === index}
+          <div
+            class="preset-tonal p-3 rounded space-y-2"
+            data-testid="inline-preset-{index}"
+          >
+            <p class="text-xs opacity-70">
+              New settings, saved to the library and used for this rail.
+            </p>
+            <div class="flex flex-wrap gap-2 items-end">
+              <label class="label">
+                <span class="label-text text-xs">Name</span>
+                <input class="input w-48" type="text" bind:value={draft.name} aria-label="New settings name" />
+              </label>
+              <label class="label w-28">
+                <span class="label-text text-xs">Voltage (V)</span>
+                <input class="input" type="number" step="0.001" min="0" bind:value={draft.volt} aria-label="New settings voltage" />
+              </label>
+              <label class="label w-32">
+                <span class="label-text text-xs">Current limit (A)</span>
+                <input class="input" type="number" step="0.001" min="0" bind:value={draft.curr_limit} aria-label="New settings current limit" />
+              </label>
+              <button
+                class="btn btn-sm preset-filled"
+                type="button"
+                disabled={busy || !draft.name}
+                onclick={savePreset}
+              >
+                Save settings
+              </button>
+              <button
+                class="btn btn-sm preset-tonal"
+                type="button"
+                onclick={() => (newPresetFor = null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        {/if}
 
         {#if warnings[index]}
           <p class="text-xs preset-tonal-warning p-2 rounded" data-testid="binding-warning-{index}">
@@ -233,14 +367,6 @@
         {/if}
       </div>
     {/each}
-
-    {#if bindings.length > 1}
-      <p class="text-xs opacity-60">
-        Rails come up in ascending order. The dwell is the pause <em>after</em> that rail
-        is switched on, before the next one. Unticking <em>Energise</em> stages the rail's
-        settings without bringing it up.
-      </p>
-    {/if}
   </div>
 
   {#if error}
@@ -249,13 +375,15 @@
     </p>
   {/if}
 
+  <hr class="hr" />
+
   <div class="flex gap-2">
     <button
-      class="btn preset-filled-primary-500"
+      class="btn preset-filled"
       type="submit"
       disabled={busy || !name || bindings.length === 0 || hasWarnings}
     >
-      {profile ? 'Save' : 'Create'}
+      {profile ? 'Save profile' : 'Create profile'}
     </button>
     <button class="btn preset-tonal" type="button" onclick={() => ondone?.()} disabled={busy}>
       Cancel

@@ -1,35 +1,48 @@
 <script lang="ts">
-  import type { DeviceProfile } from '../types';
-  import {
-    ApiFailure,
-    applyProfile,
-    powerOffProfile,
-    powerOnProfile,
-  } from '../api';
+  import type { DeviceProfile, DeviceView } from '../types';
+  import { ApiFailure, applyProfile, powerOffProfile, powerOnProfile } from '../api';
+  import { isStaged, profileState, stateLabel } from '../profile-state';
+  import { trim } from '../format';
 
   let {
     profile,
+    devices,
     onchange,
-  }: { profile: DeviceProfile; onchange?: () => void } = $props();
+    onedit,
+    ondelete,
+  }: {
+    profile: DeviceProfile;
+    devices: DeviceView[];
+    onchange?: () => void;
+    onedit?: () => void;
+    ondelete?: () => void;
+  } = $props();
 
   let error = $state<string | null>(null);
   let forceable = $state(false);
-  let staged = $state(false);
   let busy = $state(false);
 
-  async function run(action: () => Promise<unknown>, stages: boolean) {
+  const condition = $derived(profileState(profile, devices));
+  const staged = $derived(isStaged(profile, devices));
+
+  const TONE: Record<string, string> = {
+    live: 'preset-tonal-success',
+    'partly-live': 'preset-tonal-warning',
+    staged: 'preset-tonal',
+    idle: 'preset-tonal-surface',
+    unavailable: 'preset-tonal-warning',
+  };
+
+  async function run(action: () => Promise<unknown>) {
     error = null;
     forceable = false;
     busy = true;
     try {
       await action();
-      if (stages) staged = true;
       onchange?.();
     } catch (e) {
       if (e instanceof ApiFailure) {
         error = e.detail.message;
-        // Only offered when the server says this particular refusal is one
-        // force can override. It never covers a clamp or a quarantine.
         forceable = e.detail.forceable === true;
       } else {
         error = String(e);
@@ -38,76 +51,97 @@
       busy = false;
     }
   }
-
-  const stage = (force = false) => run(() => applyProfile(profile.id, force), true);
-  const powerOn = () => run(() => powerOnProfile(profile.id), false);
-  const powerOff = () => run(() => powerOffProfile(profile.id), false);
-
-  const rails = $derived(
-    profile.bindings.map((b) => ({
-      ...b,
-      label: `${b.slot}/${b.channel}`,
-    })),
-  );
 </script>
 
-<article class="card preset-outlined-surface-200-800 p-4 space-y-3" data-testid="profile-{profile.id}">
-  <header class="space-y-1">
-    <h3 class="h4">{profile.name}</h3>
-    {#if profile.description}
-      <p class="text-sm opacity-70">{profile.description}</p>
-    {/if}
+<article
+  class="card preset-outlined-surface-200-800 p-4 space-y-3"
+  data-testid="profile-{profile.id}"
+  data-profile-state={condition}
+>
+  <header class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+    <div>
+      <h3 class="h4">{profile.name}</h3>
+      {#if profile.description}
+        <p class="text-sm opacity-70">{profile.description}</p>
+      {/if}
+    </div>
+    <span class="badge {TONE[condition]} text-sm px-3 py-1" data-testid="profile-status">
+      {stateLabel(condition)}
+    </span>
   </header>
 
-  <ol class="text-sm space-y-1">
-    {#each rails as rail (rail.id)}
-      <li class="flex justify-between gap-3">
-        <span class="reading">
-          {rail.sequence_order}. {rail.label}
+  <!--
+    A power-up sequence, drawn as one. Steps are numbered because this genuinely
+    is ordered in time, and the dwell sits *between* the steps it separates —
+    attached to the rail above it, it read as "this rail waits", which is the
+    opposite of what happens.
+  -->
+  <ol class="space-y-0" data-testid="profile-sequence">
+    {#each profile.bindings as binding, index (binding.id)}
+      <li class="flex items-baseline gap-3 py-1">
+        <span class="reading text-xs opacity-50 w-4 tabular-nums">{index + 1}</span>
+        <span class="w-28 shrink-0">{binding.slot} · {binding.channel}</span>
+        <span class="reading tabular-nums">
+          {trim(binding.preset.volt, 'V')}
+          <span class="opacity-40">/</span>
+          {trim(binding.preset.curr_limit, 'A')}
         </span>
-        <span class="opacity-70">
-          {rail.preset.name} &middot; {rail.preset.volt.toFixed(3)} V /
-          {rail.preset.curr_limit.toFixed(3)} A
-          {#if rail.delay_ms > 0}&middot; wait {rail.delay_ms} ms{/if}
-          {#if !rail.output_on}&middot; staged only{/if}
-        </span>
+        <span class="text-xs opacity-60">{binding.preset.name}</span>
+        {#if !binding.output_on}
+          <span class="text-xs opacity-60">staged only</span>
+        {/if}
       </li>
+      {#if binding.delay_ms > 0 && index < profile.bindings.length - 1}
+        <li class="flex items-center gap-3 pl-4 text-xs opacity-50" aria-hidden="true">
+          <span class="border-l border-surface-300-700 h-4 ml-1.5"></span>
+          <span>then wait {binding.delay_ms} ms</span>
+        </li>
+      {/if}
     {/each}
   </ol>
 
-  <hr class="hr" />
-
-  <div class="flex flex-wrap gap-2">
-    <!--
-      Three separate buttons, not one. Applying stages setpoints and cannot
-      energise anything; powering on is the only action that puts energy into a
-      device, so it stays a deliberate second press rather than a consequence of
-      loading a profile.
-    -->
+  <div class="flex flex-wrap items-center gap-2">
     <button
-      class="btn preset-tonal"
+      class="btn btn-sm preset-tonal"
       type="button"
       disabled={busy}
-      onclick={() => stage()}
+      onclick={() => run(() => applyProfile(profile.id))}
     >
       Apply setpoints
     </button>
     <button
-      class="btn preset-filled-primary-500"
+      class="btn btn-sm preset-filled-success-500"
       type="button"
       disabled={busy || !staged}
-      title={staged ? 'Energise the rails in sequence' : 'Apply the setpoints first'}
-      onclick={powerOn}
+      onclick={() => run(() => powerOnProfile(profile.id))}
     >
       Power on
     </button>
     <button
-      class="btn preset-tonal-error"
+      class="btn btn-sm preset-tonal-error"
       type="button"
       disabled={busy}
-      onclick={powerOff}
+      onclick={() => run(() => powerOffProfile(profile.id))}
     >
       Power off
+    </button>
+
+    {#if !staged}
+      <!-- A disabled control with no visible reason reads as a broken one. -->
+      <span class="text-xs opacity-60">Apply the setpoints before powering on</span>
+    {/if}
+
+    <span class="grow"></span>
+    <!-- Inside the card, because they act on it. -->
+    <button class="btn btn-sm preset-tonal" type="button" onclick={() => onedit?.()}>
+      Edit
+    </button>
+    <button
+      class="btn btn-sm hover:preset-tonal-error"
+      type="button"
+      onclick={() => ondelete?.()}
+    >
+      Delete
     </button>
   </div>
 
@@ -116,10 +150,10 @@
       <p class="text-sm">{error}</p>
       {#if forceable}
         <button
-          class="btn btn-sm preset-filled-warning-500"
+          class="btn btn-sm preset-tonal-warning"
           type="button"
           disabled={busy}
-          onclick={() => stage(true)}
+          onclick={() => run(() => applyProfile(profile.id, true))}
           data-testid="force-apply"
         >
           Apply anyway

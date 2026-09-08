@@ -17,6 +17,16 @@ import type {
 /** Shown wherever a value is not known. Never a number. */
 export const UNKNOWN = 'Unknown';
 
+/**
+ * Shown for a channel that is switched off.
+ *
+ * Distinct from {@link UNKNOWN} on purpose, and the distinction is the whole
+ * point: a dash means "this rail is not producing anything", a word means "we
+ * cannot see this rail". Rendering both the same way would collapse exactly the
+ * difference the rest of the system exists to preserve.
+ */
+export const IDLE = '—';
+
 function fixed(value: number | null | undefined, digits: number, unit: string): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return UNKNOWN;
@@ -27,6 +37,38 @@ function fixed(value: number | null | undefined, digits: number, unit: string): 
 export const formatVolts = (v: number | null | undefined) => fixed(v, 3, 'V');
 export const formatAmps = (a: number | null | undefined) => fixed(a, 3, 'A');
 export const formatWatts = (w: number | null | undefined) => fixed(w, 2, 'W');
+
+/**
+ * A measured value as it appears in the bench table.
+ *
+ * An off channel really does read zero, so printing `0.000 V` would not be a
+ * lie — but six of them stacked up is noise that buries the two rails anyone
+ * cares about. The dash says the same thing more quietly.
+ */
+export function reading(
+  channel: ChannelView,
+  quantity: 'volt' | 'curr' | 'power',
+): string {
+  if (channel.measurement === null) return UNKNOWN;
+  if (channel.output_on === false) return IDLE;
+  const value = channel.measurement[quantity];
+  return quantity === 'volt'
+    ? formatVolts(value)
+    : quantity === 'curr'
+      ? formatAmps(value)
+      : formatWatts(value);
+}
+
+/**
+ * A configured limit, at the precision it was configured to.
+ *
+ * `30.000 V` implies a thousandth of a volt of meaning that a limit does not
+ * have. Trailing zeros are dropped so the number reads at its own scale.
+ */
+export function trim(value: number, unit: string): string {
+  const text = value.toFixed(3).replace(/\.?0+$/, '');
+  return `${text} ${unit}`;
+}
 
 /** Whether a channel has any live knowledge behind it. */
 export function isKnown(channel: ChannelView): boolean {
@@ -73,7 +115,9 @@ export const TONAL: Record<Tone, string> = {
 export function deviceStatus(device: DeviceView): StatusTone {
   switch (device.state) {
     case 'online':
-      return { label: 'Online', tone: 'success' };
+      // Neutral on purpose: online is the unremarkable case, and a status badge
+      // that shouts even when nothing is wrong teaches people to ignore it.
+      return { label: 'Online', tone: 'surface' };
     case 'quarantined':
       return {
         label: 'Quarantined',

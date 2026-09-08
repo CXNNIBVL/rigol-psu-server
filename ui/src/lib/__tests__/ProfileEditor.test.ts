@@ -56,7 +56,7 @@ describe('ProfileEditor', () => {
     await ready();
 
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
-    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
   });
 
   it('offers only configured channels, with their limits shown', async () => {
@@ -80,7 +80,7 @@ describe('ProfileEditor', () => {
     await userEvent.selectOptions(screen.getByLabelText('Rail 1 preset'), '2');
 
     expect(screen.getByTestId('binding-warning-0')).toHaveTextContent('exceeds');
-    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
   });
 
   it('warns when one channel is bound twice', async () => {
@@ -91,7 +91,7 @@ describe('ProfileEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
 
     expect(screen.getByTestId('binding-warning-0')).toHaveTextContent('more than once');
-    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
   });
 
   it('submits a valid profile with its bindings', async () => {
@@ -102,7 +102,7 @@ describe('ProfileEditor', () => {
 
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
 
     expect(sent).toMatchObject({
       name: 'Board',
@@ -127,7 +127,6 @@ describe('ProfileEditor', () => {
 
     expect(screen.getByLabelText('Profile name')).toHaveValue('Mainboard');
     expect(screen.getByLabelText('Rail 1 dwell')).toHaveValue(90);
-    expect(screen.getByLabelText('Rail 1 order')).toHaveValue(4);
   });
 
   it('says so when there are no supplies to bind to', async () => {
@@ -146,7 +145,7 @@ describe('ProfileEditor', () => {
 
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
 
     expect(sent.bindings[0].output_on).toBe(true);
   });
@@ -162,8 +161,72 @@ describe('ProfileEditor', () => {
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
     await userEvent.click(screen.getByLabelText('Rail 1 energise on power-on'));
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
 
     expect(sent.bindings[0].output_on).toBe(false);
+  });
+
+  it('orders rails by position, not by a typed number', async () => {
+    // A free order field allowed 1, 1, 1 — ties whose resolution was then
+    // incidental. The list order is the sequence.
+    let sent: any = null;
+    mockApi((body) => (sent = body));
+    render(ProfileEditor, { devices: DEVICES });
+    await ready();
+
+    await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+    await userEvent.selectOptions(screen.getByLabelText('Rail 2 channel'), 'psu1/CH2');
+
+    await userEvent.click(screen.getByLabelText('Move rail 2 earlier'));
+    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+
+    expect(sent.bindings.map((b: any) => [b.channel, b.sequence_order])).toEqual([
+      ['CH2', 1],
+      ['CH1', 2],
+    ]);
+  });
+
+  it('creates settings inline rather than sending you away', async () => {
+    // The dead end this replaces: needing a preset that did not exist meant
+    // leaving the editor and losing the profile in progress.
+    const posts: Array<{ url: string; body: any }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === '/api/presets' && (init?.method ?? 'GET') === 'GET') {
+          return { ok: true, status: 200, json: async () => PRESETS } as Response;
+        }
+        const body = JSON.parse(String(init?.body));
+        posts.push({ url, body });
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: 99, ...body }),
+        } as Response;
+      }),
+    );
+
+    render(ProfileEditor, { devices: DEVICES });
+    await ready();
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+
+    await userEvent.selectOptions(screen.getByLabelText('Rail 1 preset'), '__new');
+    expect(screen.getByTestId('inline-preset-0')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('New settings name'), 'rail 2v5');
+    await userEvent.clear(screen.getByLabelText('New settings voltage'));
+    await userEvent.type(screen.getByLabelText('New settings voltage'), '2.5');
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+
+    expect(posts[0]!.url).toBe('/api/presets');
+    expect(posts[0]!.body.name).toBe('rail 2v5');
+
+    // And the rail is now using it, without the editor having been left.
+    expect(screen.getByTestId('profile-editor')).toBeInTheDocument();
+    expect(screen.getByLabelText('Rail 1 preset')).toHaveValue('99');
+
+    vi.unstubAllGlobals();
   });
 });

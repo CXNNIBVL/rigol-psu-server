@@ -47,9 +47,18 @@ test('shows every configured supply and channel', async ({ page }) => {
 
 test('readings go live over the WebSocket', async ({ page }) => {
   await page.goto('/');
-  const volt = page.getByTestId('channel-psu1-CH1').getByTestId('volt');
+  const card = page.getByTestId('channel-psu1-CH1');
+  const volt = card.getByTestId('volt');
+
+  // An idle rail reads as a dash, which is the point — so energise it and watch
+  // a real measurement arrive.
+  await expect(volt).toHaveText('—');
+  await segment(card, 'On').click();
+
   await expect(volt).toContainText('V');
   await expect(volt).not.toContainText('Unknown');
+
+  await segment(card, 'Off').click();
 });
 
 test('a setpoint within limits is applied and reflected back', async ({ page }) => {
@@ -58,11 +67,17 @@ test('a setpoint within limits is applied and reflected back', async ({ page }) 
 
   await card.getByLabel('CH1 voltage').fill('3.3');
   await card.getByLabel('CH1 current limit').fill('1.0');
-  await card.getByRole('button', { name: 'Set' }).click();
+  await card.getByRole('button', { name: 'Apply' }).click();
 
   // The value comes back from the instrument via the setpoint poll, not from
   // local state, so this asserts the whole round trip.
-  await expect(card).toContainText('setpoint 3.300 V');
+  await expect
+    .poll(async () => {
+      const s = await (await page.request.get('/api/state')).json();
+      return s.devices.find((d: { slot: string }) => d.slot === 'psu1').channels[0]
+        .setpoint.volt;
+    })
+    .toBeCloseTo(3.3, 3);
 });
 
 test('a setpoint above the operator limit is refused, with both numbers', async ({
@@ -73,8 +88,7 @@ test('a setpoint above the operator limit is refused, with both numbers', async 
   const card = page.getByTestId('channel-psu1-CH3');
 
   await card.getByLabel('CH3 voltage').fill('12');
-  await card.getByLabel('CH3 current limit').fill('1');
-  await card.getByRole('button', { name: 'Set' }).click();
+  await card.getByRole('button', { name: 'Apply' }).click();
 
   const error = card.getByTestId('channel-error');
   await expect(error).toBeVisible();
@@ -168,7 +182,7 @@ test.describe('profiles', () => {
         name: `Mainboard ${Date.now()}`,
         description: 'seeded by the e2e suite',
         bindings: [
-          { slot: 'psu1', channel: 'CH1', preset_id: coreId, sequence_order: 1, delay_ms: 0 },
+          { slot: 'psu1', channel: 'CH1', preset_id: coreId, sequence_order: 1, delay_ms: 0, output_on: true },
         ],
       },
     });
@@ -248,7 +262,7 @@ test.describe('authoring', () => {
     await page.getByLabel('Preset name').fill(`core ${stamp}`);
     await page.getByLabel('Voltage').fill('1.2');
     await page.getByLabel('Current limit').fill('1.0');
-    await page.getByRole('button', { name: 'Create' }).click();
+    await page.getByRole('button', { name: 'Add settings' }).click();
     await expect(page.getByTestId('presets-panel')).toContainText(`core ${stamp}`);
 
     // 2. A profile binding it to a channel.
@@ -257,16 +271,18 @@ test.describe('authoring', () => {
     await page.getByLabel('Profile name').fill(`Board ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
     await page.getByLabel('Rail 1 dwell').fill('40');
-    await page.getByRole('button', { name: 'Create' }).click();
+    await page.getByRole('button', { name: 'Create profile' }).click();
 
     // 3. It is listed, and applying it works.
     const card = page.locator('[data-testid^="profile-"]', {
       hasText: `Board ${stamp}`,
     });
     await expect(card).toBeVisible();
-    await expect(card).toContainText('wait 40 ms');
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    // Power on becomes available because the bench now holds the settings, not
+    // because a local flag was set.
     await expect(card.getByRole('button', { name: 'Power on' })).toBeEnabled();
+    await expect(card.getByTestId('profile-status')).toHaveText('Staged');
   });
 
   test('the editor refuses a preset that exceeds the channel limit', async ({ page }) => {
@@ -278,7 +294,7 @@ test.describe('authoring', () => {
     await page.getByLabel('Preset name').fill(`too much ${stamp}`);
     await page.getByLabel('Voltage').fill('12');
     await page.getByLabel('Current limit').fill('1.0');
-    await page.getByRole('button', { name: 'Create' }).click();
+    await page.getByRole('button', { name: 'Add settings' }).click();
 
     await page.getByTestId('nav-profiles').click();
     await page.getByTestId('new-profile').click();
@@ -288,7 +304,7 @@ test.describe('authoring', () => {
     await page.getByLabel('Rail 1 preset').selectOption({ label: `too much ${stamp} (12.000 V)` });
 
     await expect(page.getByTestId('binding-warning-0')).toContainText('exceeds');
-    await expect(page.getByRole('button', { name: 'Create' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Create profile' })).toBeDisabled();
   });
 
   test('deleting a preset a profile depends on is refused with a reason', async ({
@@ -305,16 +321,18 @@ test.describe('authoring', () => {
     await page.request.post('/api/profiles', {
       data: {
         name: `Depends ${stamp}`, description: '',
-        bindings: [{ slot: 'psu1', channel: 'CH1', preset_id: presetId, sequence_order: 1, delay_ms: 0 }],
+        bindings: [{ slot: 'psu1', channel: 'CH1', preset_id: presetId, sequence_order: 1, delay_ms: 0, output_on: true }],
       },
     });
 
     await page.goto('/');
     await page.getByTestId('nav-presets').click();
-    await page.getByTestId(`preset-${presetId}`).getByRole('button', { name: 'Delete' }).click();
 
-    await expect(page.getByTestId('preset-error')).toContainText('cannot be deleted');
-    await expect(page.getByTestId(`preset-${presetId}`)).toBeVisible();
+    // The refusal is now stated up front rather than discovered by trying: the
+    // row names the profile depending on it and the control is unavailable.
+    const row = page.getByTestId(`preset-${presetId}`);
+    await expect(row).toContainText(`Depends ${stamp}`);
+    await expect(row.getByRole('button', { name: 'Delete' })).toBeDisabled();
   });
 
   test('the health view reports a faulted supply', async ({ page }) => {

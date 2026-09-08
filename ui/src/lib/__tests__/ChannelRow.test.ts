@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import ChannelCard from '../components/ChannelCard.svelte';
+import ChannelRow from '../components/ChannelRow.svelte';
 import { channel, device, unknownChannel } from './fixtures';
 
-describe('ChannelCard', () => {
+describe('ChannelRow', () => {
   it('shows live readings', () => {
-    render(ChannelCard, { device: device(), channel: channel() });
+    render(ChannelRow, { device: device(), channel: channel() });
     expect(screen.getByTestId('volt')).toHaveTextContent('3.300 V');
     expect(screen.getByTestId('curr')).toHaveTextContent('0.330 A');
     expect(screen.getByTestId('power')).toHaveTextContent('1.09 W');
@@ -13,7 +13,7 @@ describe('ChannelCard', () => {
 
   // The rule the whole stack exists to protect.
   it('renders Unknown, not zero, when the supply is not answering', () => {
-    render(ChannelCard, {
+    render(ChannelRow, {
       device: device({ state: 'offline', code: 'device_gone', message: 'gone' } as never),
       channel: unknownChannel(),
     });
@@ -25,7 +25,7 @@ describe('ChannelCard', () => {
   });
 
   it('disables the whole control on an offline supply', () => {
-    render(ChannelCard, {
+    render(ChannelRow, {
       device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
       channel: unknownChannel(),
     });
@@ -36,7 +36,7 @@ describe('ChannelCard', () => {
   it('lets a quarantined supply be switched off but not on', () => {
     // Quarantine blocks energising and nothing else, so only the "on" segment
     // is refused — removing power must always stay available.
-    render(ChannelCard, {
+    render(ChannelRow, {
       device: device({ state: 'quarantined', reported_serial: 'X' } as never),
       channel: channel(),
     });
@@ -45,14 +45,14 @@ describe('ChannelCard', () => {
   });
 
   it('selects the segment matching the rail, and neither when unknown', () => {
-    const { unmount } = render(ChannelCard, {
+    const { unmount } = render(ChannelRow, {
       device: device(),
       channel: channel({ output_on: true }),
     });
     expect(screen.getByRole('radio', { name: 'On' })).toBeChecked();
     unmount();
 
-    render(ChannelCard, {
+    render(ChannelRow, {
       device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
       channel: unknownChannel(),
     });
@@ -63,7 +63,7 @@ describe('ChannelCard', () => {
   });
 
   it('explains a limit violation instead of silently disabling the card', () => {
-    render(ChannelCard, {
+    render(ChannelRow, {
       device: device(),
       channel: channel({ violation: { quantity: 'voltage', requested: 12, limit: 5.5 } }),
     });
@@ -72,13 +72,75 @@ describe('ChannelCard', () => {
     expect(detail).toHaveTextContent(/left energised/i);
   });
 
-  it('shows the configured limits so the bound is visible without a click', () => {
-    render(ChannelCard, { device: device(), channel: channel() });
-    expect(screen.getByText(/Limits 5\.500 V \/ 2\.000 A/)).toBeInTheDocument();
+  it('shows the configured limits at their own precision', () => {
+    // `5.500 V` implies a thousandth of a volt of meaning that a limit set to
+    // 5.5 does not have.
+    render(ChannelRow, { device: device(), channel: channel() });
+    expect(screen.getByText('5.5 V / 2 A')).toBeInTheDocument();
+  });
+
+  it('shows a dash for an idle rail, and the word for an unseen one', () => {
+    // The distinction is the whole point: a dash means "producing nothing", a
+    // word means "we cannot see this". Collapsing them would undo the rule the
+    // rest of the system is built around.
+    const { unmount } = render(ChannelRow, {
+      device: device(),
+      channel: channel({ output_on: false }),
+    });
+    expect(screen.getByTestId('volt')).toHaveTextContent('—');
+    expect(screen.getByTestId('volt')).not.toHaveTextContent('0.000');
+    unmount();
+
+    render(ChannelRow, {
+      device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
+      channel: unknownChannel(),
+    });
+    expect(screen.getByTestId('volt')).toHaveTextContent('Unknown');
+  });
+
+  it('seeds the setpoint fields from the instrument', () => {
+    render(ChannelRow, { device: device(), channel: channel() });
+    expect(screen.getByLabelText('CH1 voltage')).toHaveValue(3.3);
+    expect(screen.getByLabelText('CH1 current limit')).toHaveValue(1);
+  });
+
+  it('offers Apply only once something has been changed', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    render(ChannelRow, { device: device(), channel: channel() });
+
+    // No permanently dead button sitting in every row.
+    expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
+
+    await userEvent.clear(screen.getByLabelText('CH1 voltage'));
+    await userEvent.type(screen.getByLabelText('CH1 voltage'), '4');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+  });
+
+  it('lets the current limit be changed on its own', async () => {
+    // The old form demanded both fields before it would submit, so there was no
+    // way to adjust only the current limit.
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const sent: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        sent.push(JSON.parse(String(init?.body)));
+        return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+      }),
+    );
+
+    render(ChannelRow, { device: device(), channel: channel() });
+    await userEvent.clear(screen.getByLabelText('CH1 current limit'));
+    await userEvent.type(screen.getByLabelText('CH1 current limit'), '0.5');
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    // The untouched field keeps whatever the instrument already had.
+    expect(sent[0]).toEqual({ volt: 3.3, curr_limit: 0.5 });
+    vi.unstubAllGlobals();
   });
 
   it('marks its state on the element, and drops the on/off badge', () => {
-    render(ChannelCard, { device: device(), channel: channel({ output_on: true }) });
+    render(ChannelRow, { device: device(), channel: channel({ output_on: true }) });
     const card = screen.getByTestId('channel-psu1-CH1');
     expect(card).toHaveAttribute('data-state', 'live');
     // The border and opacity carry this; a badge would be redundant.
@@ -86,14 +148,14 @@ describe('ChannelCard', () => {
   });
 
   it('dims an off channel without labelling it', () => {
-    render(ChannelCard, { device: device(), channel: channel({ output_on: false }) });
+    render(ChannelRow, { device: device(), channel: channel({ output_on: false }) });
     const card = screen.getByTestId('channel-psu1-CH1');
     expect(card).toHaveAttribute('data-state', 'off');
     expect(card.className).toContain('opacity');
   });
 
   it('keeps naming Unknown in words', () => {
-    render(ChannelCard, {
+    render(ChannelRow, {
       device: device({ state: 'offline', code: 'device_gone', message: 'gone' } as never),
       channel: unknownChannel(),
     });
@@ -104,7 +166,7 @@ describe('ChannelCard', () => {
   });
 
   it('advertises the output state on the control, which is what the accent hooks onto', () => {
-    const { unmount } = render(ChannelCard, {
+    const { unmount } = render(ChannelRow, {
       device: device(),
       channel: channel({ output_on: true }),
     });
@@ -114,7 +176,7 @@ describe('ChannelCard', () => {
     );
     unmount();
 
-    render(ChannelCard, {
+    render(ChannelRow, {
       device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
       channel: unknownChannel(),
     });
@@ -122,5 +184,18 @@ describe('ChannelCard', () => {
     expect(document.querySelector('[data-scope="radio-group"]')).not.toHaveAttribute(
       'data-output',
     );
+  });
+
+  it('does not repeat the supply-level reason on every channel', () => {
+    // The panel says "not answering" once; three copies of it would bury a
+    // channel that actually has something wrong with it.
+    render(ChannelRow, {
+      device: device({ state: 'offline', code: 'device_gone', message: 'gone' } as never),
+      channel: unknownChannel(),
+    });
+    expect(screen.queryByTestId('channel-detail')).not.toBeInTheDocument();
+    // The per-channel badge still names the state — the readings say Unknown
+    // too, which is why this counts rather than looking for one match.
+    expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
   });
 });

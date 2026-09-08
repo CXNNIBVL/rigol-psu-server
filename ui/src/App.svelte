@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { Navigation } from '@skeletonlabs/skeleton-svelte';
   import { Bench } from './lib/bench.svelte';
-  import DeviceCard from './lib/components/DeviceCard.svelte';
+  import SupplyPanel from './lib/components/SupplyPanel.svelte';
   import ProfilesPanel from './lib/components/ProfilesPanel.svelte';
   import PresetsPanel from './lib/components/PresetsPanel.svelte';
   import HealthPanel from './lib/components/HealthPanel.svelte';
@@ -16,7 +16,7 @@
   const TABS: Array<{ id: Tab; label: string }> = [
     { id: 'bench', label: 'Bench' },
     { id: 'profiles', label: 'Profiles' },
-    { id: 'presets', label: 'Presets' },
+    { id: 'presets', label: 'Settings' },
     { id: 'health', label: 'Health' },
   ];
 
@@ -104,12 +104,11 @@
     {:else if tab === 'health'}
       <HealthPanel {devices} />
     {:else if bench.snapshot}
-      <div class="space-y-8">
-        {#each bench.snapshot.devices as device, index (device.slot)}
-          {#if index > 0}
-            <hr class="hr" />
-          {/if}
-          <DeviceCard {device} />
+      <!-- No rule between supplies: the panel borders and the spacing already
+           say where one ends and the next begins. -->
+      <div class="space-y-4">
+        {#each bench.snapshot.devices as device (device.slot)}
+          <SupplyPanel {device} />
         {/each}
       </div>
     {:else}

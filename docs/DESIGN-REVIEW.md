@@ -1,6 +1,7 @@
 # Frontend design review
 
-**Status:** review only — nothing here has been acted on
+**Status:** §2, §3, §4, §6, §7, §10, §11 and §12 implemented; §1 out of scope;
+§5 partly done; §9 not started
 **Date:** 2026-09-08
 **Reviewed:** all four sections at 1440×900, plus 390×844 mobile
 
@@ -342,8 +343,15 @@ should show whether reality currently matches that claim.
 **Presets** and **Profiles** are near-synonyms in English, sit adjacent in the
 rail, and are the two things a new user must distinguish immediately. The
 distinction is real — one channel's settings versus a device's rails — but the
-words do not carry it. **Rails** and **Devices** would, and match how people talk
-at a bench.
+words do not carry it.
+
+**Correction on implementing this.** The review first proposed **Rails** and
+**Devices**. That is wrong: `device` already means *a power supply* throughout
+the API and the domain crates (`DeviceView`, `/api/devices`), so calling the
+profiles section "Devices" would collide with the vocabulary the rest of the
+system uses. Renaming one half was enough — presets are now **Settings**
+("Rail settings" on the page), which reads as subordinate to Profiles rather
+than parallel with it, and does not fight any existing term.
 
 
 ---

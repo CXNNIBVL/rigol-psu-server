@@ -12,6 +12,7 @@
 
   // undefined = not editing; null = creating; a profile = editing that one.
   let editing = $state<DeviceProfile | null | undefined>(undefined);
+  let confirming = $state<DeviceProfile | null>(null);
 
   async function refresh() {
     try {
@@ -36,6 +37,7 @@
   async function remove(profile: DeviceProfile) {
     try {
       await deleteProfile(profile.id);
+      confirming = null;
       await refresh();
     } catch (e) {
       error = e instanceof ApiFailure ? e.detail.message : String(e);
@@ -45,10 +47,15 @@
 
 <section class="space-y-4" data-testid="profiles-panel">
   <div class="flex items-center justify-between gap-2">
-    <h2 class="h3">Device profiles</h2>
+    <div>
+      <h2 class="h3">Device profiles</h2>
+      <p class="text-sm opacity-70">
+        A profile is a device and the rails it needs, in the order they come up.
+      </p>
+    </div>
     {#if editing === undefined}
       <button
-        class="btn preset-filled-primary-500"
+        class="btn preset-filled"
         type="button"
         onclick={() => (editing = null)}
         data-testid="new-profile"
@@ -72,33 +79,51 @@
 
   {#if loaded && profiles.length === 0 && editing === undefined}
     <p class="opacity-60 text-sm">
-      No profiles yet. A profile names a device and the rails it needs, so you can
-      stage them all at once and bring them up in order.
+      No profiles yet. Create one to stage a device's rails together and bring
+      them up in order.
     </p>
   {/if}
 
-  <div class="grid gap-3 md:grid-cols-2">
+  <!-- A list rather than a grid: profiles vary in length, and forcing them into
+       columns produced rows of wildly different heights. -->
+  <div class="space-y-3">
     {#each profiles as profile (profile.id)}
-      <div class="space-y-2">
-        <ProfileCard {profile} onchange={refresh} />
-        <div class="flex gap-2">
-          <button
-            class="btn btn-sm preset-tonal"
-            type="button"
-            onclick={() => (editing = profile)}
-            data-testid="edit-profile-{profile.id}"
-          >
-            Edit
-          </button>
-          <button
-            class="btn btn-sm preset-tonal-error"
-            type="button"
-            onclick={() => remove(profile)}
-          >
-            Delete
-          </button>
-        </div>
-      </div>
+      <ProfileCard
+        {profile}
+        {devices}
+        onchange={refresh}
+        onedit={() => (editing = profile)}
+        ondelete={() => (confirming = profile)}
+      />
     {/each}
   </div>
+
+  {#if confirming}
+    <!-- A profile is minutes of work; a misclick should not be enough to lose
+         it. Red appears here, at the point of commitment, and not on the row. -->
+    <div
+      class="card preset-outlined-surface-200-800 p-4 space-y-3"
+      role="alertdialog"
+      aria-label="Confirm delete"
+      data-testid="confirm-delete"
+    >
+      <p class="text-sm">
+        Delete <strong>{confirming.name}</strong>? Its rails stay exactly as they
+        are — this removes the profile, not the power.
+      </p>
+      <div class="flex gap-2">
+        <button
+          class="btn btn-sm preset-filled-error-500"
+          type="button"
+          onclick={() => confirming && remove(confirming)}
+          data-testid="confirm-delete-yes"
+        >
+          Delete profile
+        </button>
+        <button class="btn btn-sm preset-tonal" type="button" onclick={() => (confirming = null)}>
+          Keep it
+        </button>
+      </div>
+    </div>
+  {/if}
 </section>
