@@ -1,0 +1,38 @@
+[package]
+name = "server"
+description = "HTTP and WebSocket front end for the Rigol PSU bench."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rigol-psu-server"
+path = "src/main.rs"
+
+[features]
+default = []
+# Enables `--simulate` and the fault-injection routes. Deliberately off by
+# default: the shipped binary must not contain code that can fabricate
+# instrument state.
+simulation = ["psu-core/simulation"]
+
+[dev-dependencies]
+http-body-util.workspace = true
+tower.workspace = true
+
+[dependencies]
+axum.workspace = true
+clap.workspace = true
+dp832 = { workspace = true, features = ["serde"] }
+psu-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

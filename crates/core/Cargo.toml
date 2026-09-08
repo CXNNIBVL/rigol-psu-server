@@ -1,0 +1,24 @@
+[package]
+name = "psu-core"
+description = "Domain model, configuration, clamps and supply supervision."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Exposes the simulated-supply backend so the server can run without hardware.
+# Kept off by default so the release binary cannot fabricate instrument state.
+simulation = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+[dependencies]
+dp832 = { workspace = true, features = ["serde"] }
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tracing.workspace = true

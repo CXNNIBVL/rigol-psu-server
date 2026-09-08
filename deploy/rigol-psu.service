@@ -1,0 +1,43 @@
+[Unit]
+Description=Rigol DP832 bench control server
+Documentation=https://git.ksat-stuttgart.de/source/src_collab-projects/rigol-psu-server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/rigol-psu-server --config /etc/rigol-psu/config.toml
+User=rigol
+Group=rigol
+
+# The server releases every front panel on SIGTERM. Give it room to do so
+# before being killed, or the supplies stay locked and only the mains switch
+# will clear them.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+Restart=on-failure
+RestartSec=5
+
+# The server never de-energises a channel it did not energise, so a restart
+# leaves running experiments powered and adopts them on the way back up.
+
+# Hardening. The service needs its device nodes, its config and its database,
+# and nothing else.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+StateDirectory=rigol-psu
+ReadWritePaths=/var/lib/rigol-psu
+DeviceAllow=char-usbmisc rw
+
+[Install]
+WantedBy=multi-user.target

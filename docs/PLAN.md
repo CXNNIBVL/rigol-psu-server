@@ -621,6 +621,13 @@ quietly break.
    E2E harness land with it. First genuinely useful build.
 4. **M4 — Safety.** Clamps, quarantine, adoption on restart, clamp-violation freeze,
    `force` semantics, error taxonomy. Tested end-to-end against the simulator.
+
+   *Mostly landed with M2.* Clamp enforcement, quarantine, adoption and the
+   error taxonomy were built into the actor rather than bolted on afterwards:
+   they shape its control flow, and shipping write endpoints that skip them —
+   even briefly — would have meant an interval where the API could be talked
+   into something the config forbids. What remains for M4 is `force`, which
+   only becomes meaningful once profiles exist (§9.2), and the OpenAPI spec.
 5. **M5 — Presets and profiles.** SQLite, migrations, CRUD, staged apply, sequenced
    power-on, profiles UI.
 6. **M6 — Deployment.** udev rule, systemd unit, front panel lock lifecycle,

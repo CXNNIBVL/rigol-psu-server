@@ -1,0 +1,113 @@
+# Operator configuration for the Rigol PSU bench server.
+#
+# This file is the safety boundary. The per-channel limits below cannot be
+# raised through the API, are not stored in the database, and are not editable
+# from the UI — that is the entire reason they live here rather than alongside
+# the presets. Keep it root-owned, and keep it in version control.
+#
+# The server refuses to start if this file is missing or invalid. That is
+# deliberate: running with weaker limits than intended is worse than not
+# running.
+#
+# Install to /etc/rigol-psu/config.toml.
+
+# Where to listen. There is no default — exposing this service must be a
+# deliberate act. The service is expected to be reachable only over the VPN.
+bind = "10.8.0.4:8080"
+
+[poll]
+# How often to read voltage, current and power. Drives how live the dashboard
+# feels.
+measurement_hz = 2.0
+
+# How often to re-read setpoints. This is how changes made at the instrument's
+# front panel are noticed — without it the UI would show correct measurements
+# next to a stale setpoint.
+setpoint_hz = 0.5
+
+[lock]
+# The front panel is locked while the server is actively driving a supply and
+# released after this many seconds of inactivity. Bounds how long a crashed
+# server can leave a bench locked.
+idle_timeout_secs = 60
+
+# ---------------------------------------------------------------------------
+# One [[psu]] block per supply.
+#
+# `slot` is the stable logical name. It is what the database keys on, so
+# replacing a dead supply is a udev-rule edit rather than a data migration.
+#
+# `serial` is asserted against the instrument's *IDN? response at startup. On a
+# mismatch the supply is quarantined: it can be read, configured and switched
+# off, but its outputs cannot be switched on until this file is corrected and
+# the service restarted. There is no way to clear that from the UI.
+#
+# Every channel must be declared. An undeclared channel would have no limits,
+# and the server refuses to start rather than invent a default.
+# ---------------------------------------------------------------------------
+
+[[psu]]
+slot = "psu1"
+device = "/dev/rigol-psu1"
+label = "Bench Left"
+serial = "DP8XXXXXXXXX1"
+
+  # CH1 and CH2 are rated 30 V / 3 A; CH3 is 5 V / 3 A. A limit above the
+  # channel's rating is rejected, because it could never bind and would give a
+  # false sense of protection.
+  [[psu.channel]]
+  id = "CH1"
+  max_volt = 5.5
+  max_curr = 2.0
+
+  [[psu.channel]]
+  id = "CH2"
+  max_volt = 15.0
+  max_curr = 3.0
+
+  [[psu.channel]]
+  id = "CH3"
+  max_volt = 5.0
+  max_curr = 3.0
+
+[[psu]]
+slot = "psu2"
+device = "/dev/rigol-psu2"
+label = "Bench Middle"
+serial = "DP8XXXXXXXXX2"
+
+  [[psu.channel]]
+  id = "CH1"
+  max_volt = 30.0
+  max_curr = 3.0
+
+  [[psu.channel]]
+  id = "CH2"
+  max_volt = 30.0
+  max_curr = 3.0
+
+  [[psu.channel]]
+  id = "CH3"
+  max_volt = 5.0
+  max_curr = 3.0
+
+[[psu]]
+slot = "psu3"
+device = "/dev/rigol-psu3"
+label = "Bench Right"
+serial = "DP8XXXXXXXXX3"
+
+  [[psu.channel]]
+  id = "CH1"
+  max_volt = 30.0
+  max_curr = 3.0
+
+  [[psu.channel]]
+  id = "CH2"
+  max_volt = 30.0
+  max_curr = 3.0
+
+  [[psu.channel]]
+  id = "CH3"
+  max_volt = 5.0
+  max_curr = 3.0

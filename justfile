@@ -7,7 +7,7 @@ default: fmt lint test
 
 # Run the test suite (nextest). Excludes `hw_*` tests, which need real supplies.
 test:
-    cargo nextest run --all-features
+    cargo nextest run --workspace --all-features
 
 # Doctests. Nextest does not run these, so they need their own invocation.
 test-doc:
@@ -23,8 +23,8 @@ test-hardware:
 # Both feature configurations: a compile error must not be able to hide in the
 # non-default one.
 lint:
-    cargo clippy --all-targets -- -D warnings
-    cargo clippy --all-targets --features simulation -- -D warnings
+    cargo clippy --workspace --all-targets -- -D warnings
+    cargo clippy -p server -p psu-core --all-targets --features simulation -- -D warnings
 
 fmt:
     cargo fmt --all

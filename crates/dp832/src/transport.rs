@@ -16,3 +16,19 @@ pub trait Transport: Send {
     /// A short label for logs and error messages, e.g. `/dev/rigol-psu1`.
     fn describe(&self) -> String;
 }
+
+/// Lets a caller hold supplies of differing concrete types — real and
+/// simulated — behind one collection.
+impl<T: Transport + ?Sized> Transport for Box<T> {
+    fn write(&mut self, command: &str) -> Result<(), TransportError> {
+        (**self).write(command)
+    }
+
+    fn query(&mut self, command: &str) -> Result<String, TransportError> {
+        (**self).query(command)
+    }
+
+    fn describe(&self) -> String {
+        (**self).describe()
+    }
+}

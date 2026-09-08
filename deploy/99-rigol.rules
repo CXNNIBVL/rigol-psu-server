@@ -1,0 +1,29 @@
+# Stable device names for the Rigol DP832 supplies.
+#
+# This file is load-bearing. The kernel assigns /dev/usbtmcN in enumeration
+# order, which changes across reboots and replugs. With three identical DP832s
+# that means the numbering can rotate silently, and a preset intended for one
+# bench supply would be applied to another. Matching on the serial number pins
+# each unit to a fixed name regardless of the order the kernel finds them in.
+#
+# Install:
+#   sudo cp deploy/99-rigol.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# Find the serials with:
+#   udevadm info -a -n /dev/usbtmc0 | grep -m1 'ATTRS{serial}'
+#
+# The names assigned here must match the `device` fields in config.toml, and the
+# serials must match its `serial` fields — the server asserts the two agree at
+# startup and quarantines any supply that does not.
+
+SUBSYSTEM!="usbmisc", GOTO="rigol_end"
+KERNEL!="usbtmc[0-9]*", GOTO="rigol_end"
+ATTRS{idVendor}!="1ab1", GOTO="rigol_end"
+
+# One line per supply. Replace the serials with your own.
+ATTRS{serial}=="DP8XXXXXXXXX1", SYMLINK+="rigol-psu1", GROUP="rigol", MODE="0660"
+ATTRS{serial}=="DP8XXXXXXXXX2", SYMLINK+="rigol-psu2", GROUP="rigol", MODE="0660"
+ATTRS{serial}=="DP8XXXXXXXXX3", SYMLINK+="rigol-psu3", GROUP="rigol", MODE="0660"
+
+LABEL="rigol_end"
