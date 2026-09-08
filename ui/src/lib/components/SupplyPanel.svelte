@@ -84,15 +84,24 @@
   {/if}
 
   <div class="overflow-x-auto">
-    <table class="w-full text-sm">
+    <!--
+      Fixed widths so every supply's columns land in the same place. Sized to
+      content, each table set its own: a badge on one channel shifted that
+      panel's numbers relative to the panel above it, and comparing a current
+      across supplies meant re-finding the column each time.
+    -->
+    <table class="w-full min-w-3xl table-fixed text-sm">
       <thead>
         <tr class="text-xs opacity-60">
-          <th scope="col" class="pb-1 pr-3 text-left font-normal">Channel</th>
-          <th scope="col" class="pb-1 px-3 text-right font-normal">Voltage</th>
-          <th scope="col" class="pb-1 px-3 text-right font-normal">Current</th>
-          <th scope="col" class="pb-1 px-3 text-right font-normal">Power</th>
-          <th scope="col" class="pb-1 px-3 text-left font-normal">Setpoint</th>
-          <th scope="col" class="pb-1 pl-3 text-right font-normal">Output</th>
+          <!-- The power button sits with the channel it belongs to, which also
+               puts every rail's state in one scannable column down the left
+               edge. Setpoints go last: they are what you change, not what you
+               read, and they were splitting the measured columns from nothing. -->
+          <th scope="col" class="w-72 pb-1 pr-3 text-left font-normal">Channel</th>
+          <th scope="col" class="w-32 pb-1 px-3 text-right font-normal">Voltage</th>
+          <th scope="col" class="w-32 pb-1 px-3 text-right font-normal">Current</th>
+          <th scope="col" class="w-32 pb-1 px-3 text-right font-normal">Power</th>
+          <th scope="col" class="pb-1 pl-3 text-right font-normal">Setpoint</th>
         </tr>
       </thead>
       {#each device.channels as channel (channel.id)}

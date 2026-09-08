@@ -122,7 +122,25 @@
 >
 <tr class="border-t border-surface-200-800">
   <th scope="row" class="py-2 pr-3 text-left font-semibold whitespace-nowrap">
-    {channel.id}
+    <span class="flex items-center gap-3">
+      {#if device.state === 'offline'}
+        <!-- Nothing can be done with an unreachable supply, and the badge
+             already says why. The space is held so the column does not jump. -->
+        <span class="size-9" aria-hidden="true"></span>
+      {:else}
+        <PowerButton
+          on={channel.output_on}
+          disabled={cannotToggle}
+          {busy}
+          label="{channel.id} output"
+          onToggle={toggle}
+        />
+      {/if}
+      {channel.id}
+      {#if badge}
+        <StatusBadge status={badge} />
+      {/if}
+    </span>
   </th>
 
   <td class="reading py-2 px-3 text-right tabular-nums" data-testid="volt">
@@ -135,14 +153,14 @@
     {reading(channel, 'power')}
   </td>
 
-  <td class="py-2 px-3">
+  <td class="py-2 pl-3 text-right">
     {#if channel.setpoint === null}
       <span class="opacity-60">{UNKNOWN}</span>
     {:else if editing}
       <!-- Inputs exist only for the row being edited. Nine pairs of permanently
            open boxes out-shouted the readings, which are the point of the
            table. -->
-      <div class="flex items-center gap-1">
+      <div class="flex items-center justify-end gap-1">
         <input
           class="input w-24 text-right"
           type="number"
@@ -180,7 +198,7 @@
         </span>
       </div>
     {:else}
-      <div class="flex items-center gap-2">
+      <div class="flex items-center justify-end gap-2">
         <span class="reading tabular-nums">
           {channel.setpoint.volt.toFixed(3)} <span class="text-xs opacity-60">V</span>
           <span class="opacity-40">/</span>
@@ -197,30 +215,11 @@
     {/if}
   </td>
 
-  <td class="py-2 pl-3">
-    <div class="flex items-center justify-end gap-2">
-      {#if badge}
-        <StatusBadge status={badge} />
-      {/if}
-      {#if device.state === 'offline'}
-        <!-- Nothing can be done with an unreachable supply, and the badge
-             already says why. -->
-      {:else}
-        <PowerButton
-          on={channel.output_on}
-          disabled={cannotToggle}
-          {busy}
-          label="{channel.id} output"
-          onToggle={toggle}
-        />
-      {/if}
-    </div>
-  </td>
 </tr>
 
 {#if detail || error}
   <tr>
-    <td colspan="6" class="pb-2 px-3">
+    <td colspan="5" class="pb-2 px-3">
       {#if detail}
         <p class="text-xs preset-tonal-error p-2 rounded" data-testid="channel-detail">
           {detail}

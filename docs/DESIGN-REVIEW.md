@@ -611,6 +611,18 @@ The first attempt filled the off state tonally, which on this background was
 close to invisible — the control stopped reading as a control. Outlined instead:
 quieter than a live rail, still obviously pressable.
 
+**Column order.** The power button sits with the channel it belongs to, which
+also puts every rail's state in one scannable column down the left edge — the
+fastest way to answer "what is live" without reading anything. Setpoints moved
+to the far right: they are what you *change*, and they were sitting between the
+measured columns and the control, splitting the reading from the row it belongs
+to.
+
+Column widths are fixed rather than sized to content. Each supply's table was
+laying itself out independently, so a badge on one channel shifted that panel's
+numbers relative to the panel above it, and comparing a current across supplies
+meant re-finding the column each time.
+
 ---
 
 ## What is working, and should survive any redesign
