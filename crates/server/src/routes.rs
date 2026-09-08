@@ -126,6 +126,12 @@ pub async fn put_setpoint(
         .await
         .map_err(|e| ApiError::from_command(e).at(&slot, Some(channel.to_string())))?;
 
+    // Whatever a profile wrote here is no longer what the channel holds, so its
+    // ownership ends now rather than at the next verification sweep.
+    if let Err(e) = state.store.release(&slot, channel) {
+        tracing::warn!(error = %e, "could not release a channel claim");
+    }
+
     Ok(Json(Accepted { ok: true }))
 }
 

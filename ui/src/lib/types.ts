@@ -37,6 +37,14 @@ export type ClampViolation =
   | { quantity: 'voltage'; requested: number; limit: number }
   | { quantity: 'current'; requested: number; limit: number };
 
+/** A profile's ownership of a channel, as the server currently verifies it. */
+export interface Claim {
+  slot: string;
+  channel: ChannelId;
+  profile_id: number;
+  profile_name: string;
+}
+
 export interface ChannelView {
   id: ChannelId;
   limits: Limits;
@@ -44,6 +52,13 @@ export interface ChannelView {
   setpoint: Setpoint | null;
   protection: Protection | null;
   output_on: boolean | null;
+  /**
+   * Which profile wrote this channel's setpoints, if it still holds them. The
+   * server re-checks this against the instrument continuously, so it is an
+   * observation rather than a memory — but it says who owns the *rails*, never
+   * which board is plugged into them.
+   */
+  claimed_by: Claim | null;
   violation: ClampViolation | null;
 }
 

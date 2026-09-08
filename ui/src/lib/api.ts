@@ -104,3 +104,7 @@ export const powerOnProfile = (id: number) =>
 
 export const powerOffProfile = (id: number) =>
   request<DeviceProfile>(`/api/profiles/${id}/power-off`, 'POST');
+
+/** Off, settle, then back up in sequence — for a device under test that wedged. */
+export const powerCycleProfile = (id: number) =>
+  request<DeviceProfile>(`/api/profiles/${id}/power-cycle`, 'POST');

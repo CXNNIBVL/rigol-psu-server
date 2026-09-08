@@ -601,9 +601,11 @@ test.describe('lists', () => {
     ).toBeDisabled();
   });
 
-  test('two profiles describing the same rails say so', async ({ page }) => {
-    // The bench sees rails, not devices. Identical descriptions are the same
-    // input, so neither may imply it is the one that is running.
+  test('the profile that applied the rails is the one that owns them', async ({
+    page,
+  }) => {
+    // Two identical descriptions look the same to the instruments; only the
+    // server's record says which one wrote the values.
     const stamp = Date.now();
     const preset = await page.request.post('/api/presets', {
       data: {
@@ -628,10 +630,103 @@ test.describe('lists', () => {
       .locator('article[data-testid^="profile-"]')
       .filter({ has: page.getByRole('heading', { name: `Rev C ${stamp}`, exact: true }) });
 
-    // Stage it, so both profiles' rails genuinely match.
+    // Applying claims the rails for rev C.
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
-    await expect(card.getByTestId('profile-status')).toHaveText('Staged');
-    await expect(card.getByTestId('profile-ambiguous')).toContainText(`Rev D ${stamp}`);
+    await expect(card.getByTestId('profile-status')).toHaveText('Staged', {
+      timeout: 10_000,
+    });
+
+    // Rev D describes the same rails but did not apply them, and says so.
+    const twin = page
+      .locator('article[data-testid^="profile-"]')
+      .filter({ has: page.getByRole('heading', { name: `Rev D ${stamp}`, exact: true }) });
+    await expect(twin.getByTestId('profile-status')).toHaveText('Rails match');
+    await expect(twin.getByTestId('profile-detail')).toContainText(`Rev C ${stamp}`);
+
+    // And the bench itself names the owner of the rail.
+    await page.getByTestId('nav-bench').click();
+    await expect(page.getByTestId('channel-psu1-CH1')).toContainText(`Rev C ${stamp}`);
+  });
+
+  test('a claim is released when someone changes the rail', async ({ page }) => {
+    // Ownership is checked against the instrument, not remembered.
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `owned ${stamp}`, volt: 2.5, curr_limit: 1,
+        ovp_level: 3, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    const created = await page.request.post('/api/profiles', {
+      data: {
+        name: `Owner ${stamp}`, description: '',
+        bindings: [{
+          slot: 'psu3', channel: 'CH1', preset_id: (await preset.json()).id,
+          sequence_order: 1, delay_ms: 0, output_on: true,
+        }],
+      },
+    });
+    const profileId = (await created.json()).id;
+
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+    const card = page.getByTestId(`profile-${profileId}`);
+    await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    await expect(card.getByTestId('profile-status')).toHaveText('Staged', {
+      timeout: 10_000,
+    });
+
+    // Somebody writes the rail directly.
+    await page.request.put('/api/devices/psu3/channels/CH1/setpoint', {
+      data: { volt: 4, curr_limit: 1 },
+    });
+    await expect(card.getByTestId('profile-status')).toHaveText('Not applied', {
+      timeout: 10_000,
+    });
+  });
+
+  test('a powered profile can be cycled, and asks first', async ({ page }) => {
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `cyc ${stamp}`, volt: 3.3, curr_limit: 1,
+        ovp_level: 4, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    const created = await page.request.post('/api/profiles', {
+      data: {
+        name: `Cycle ${stamp}`, description: '',
+        bindings: [{
+          slot: 'psu2', channel: 'CH3', preset_id: (await preset.json()).id,
+          sequence_order: 1, delay_ms: 0, output_on: true,
+        }],
+      },
+    });
+    const profileId = (await created.json()).id;
+
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+    const card = page.getByTestId(`profile-${profileId}`);
+
+    // Nothing to cycle until this profile has its rails up.
+    await expect(card.getByTestId('power-cycle')).toBeDisabled();
+
+    await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    await card.getByRole('button', { name: 'Power on' }).click();
+    await expect(card.getByTestId('profile-status')).toHaveText('Powered', {
+      timeout: 10_000,
+    });
+
+    await card.getByTestId('power-cycle').click();
+    await expect(card.getByTestId('confirm-cycle')).toBeVisible();
+    await card.getByTestId('confirm-cycle-yes').click();
+
+    // Ends with the rails back up, not down.
+    await expect(card.getByTestId('profile-status')).toHaveText('Powered', {
+      timeout: 10_000,
+    });
+
+    await card.getByRole('button', { name: 'Power off' }).click();
   });
 
   test('rails on at the wrong values do not read as applied', async ({ page }) => {

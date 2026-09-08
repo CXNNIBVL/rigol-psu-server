@@ -23,6 +23,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
         2,
         include_str!("../../../migrations/002_output_on_per_binding.sql"),
     ),
+    (
+        3,
+        include_str!("../../../migrations/003_channel_claims.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -158,6 +162,17 @@ pub struct NewDeviceProfile {
     pub description: String,
     #[serde(default)]
     pub bindings: Vec<NewProfileBinding>,
+}
+
+/// A profile's ownership of one channel.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct Claim {
+    pub slot: String,
+    pub channel: ChannelId,
+    pub profile_id: i64,
+    /// Carried so the bench can name the owner without fetching every profile.
+    pub profile_name: String,
 }
 
 pub struct Store {
@@ -475,6 +490,71 @@ impl Store {
             });
         }
         Ok(())
+    }
+}
+
+impl Store {
+    // -- claims -------------------------------------------------------------
+
+    /// Record that `profile_id` owns these channels, replacing any previous
+    /// owner. A channel has one owner: two profiles cannot both have written
+    /// the values it currently holds.
+    pub fn claim(
+        &self,
+        profile_id: i64,
+        channels: &[(String, ChannelId)],
+    ) -> Result<(), StoreError> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        for (slot, channel) in channels {
+            tx.execute(
+                "INSERT INTO channel_claims (slot, channel, profile_id) VALUES (?1, ?2, ?3) \
+                 ON CONFLICT (slot, channel) DO UPDATE SET profile_id = excluded.profile_id",
+                params![slot, channel.as_scpi(), profile_id],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn release(&self, slot: &str, channel: ChannelId) -> Result<(), StoreError> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "DELETE FROM channel_claims WHERE slot = ?1 AND channel = ?2",
+            params![slot, channel.as_scpi()],
+        )?;
+        Ok(())
+    }
+
+    pub fn claims(&self) -> Result<Vec<Claim>, StoreError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT c.slot, c.channel, c.profile_id, p.name \
+             FROM channel_claims c JOIN device_profiles p ON p.id = c.profile_id",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                let channel: String = row.get(1)?;
+                Ok((
+                    channel,
+                    Claim {
+                        slot: row.get(0)?,
+                        channel: ChannelId::Ch1, // replaced below
+                        profile_id: row.get(2)?,
+                        profile_name: row.get(3)?,
+                    },
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        rows.into_iter()
+            .map(|(text, mut claim)| {
+                claim.channel = text
+                    .parse()
+                    .map_err(|_| StoreError::BadChannel(text.clone()))?;
+                Ok(claim)
+            })
+            .collect()
     }
 }
 

@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use crate::clamp::{Clamp, ClampViolation};
 use crate::model::SystemState;
-use crate::store::{DeviceProfile, ProfileBinding, Store, StoreError};
+use crate::store::{Claim, DeviceProfile, ProfileBinding, Store, StoreError};
 use crate::supervisor::Supervisor;
 use crate::CommandError;
 
@@ -118,9 +118,69 @@ pub async fn apply(
             .map_err(|source| command_error(binding, source))?;
     }
 
+    // The profile now owns these channels: it wrote what they hold. The claim is
+    // checked against the instruments on every sweep and dropped as soon as that
+    // stops being true, which is what makes it safe to report.
+    claim_channels(store, &profile)?;
+
     tracing::info!(profile = %profile.name, force, "staged profile setpoints");
     Ok(profile)
 }
+
+fn claim_channels(store: &Store, profile: &DeviceProfile) -> Result<(), StoreError> {
+    let channels: Vec<(String, dp832::ChannelId)> = profile
+        .bindings
+        .iter()
+        .map(|b| (b.slot.clone(), b.channel))
+        .collect();
+    store.claim(profile.id, &channels)
+}
+
+/// Claims whose channel no longer holds what the claiming profile specifies.
+///
+/// A channel that cannot be read is left alone rather than released — a supply
+/// briefly dropping off the bus is not evidence that somebody changed it, and
+/// releasing on every blip would make ownership useless.
+pub fn stale_claims(
+    claims: &[Claim],
+    profiles: &[DeviceProfile],
+    state: &SystemState,
+) -> Vec<Claim> {
+    claims
+        .iter()
+        .filter(|claim| {
+            let Some(profile) = profiles.iter().find(|p| p.id == claim.profile_id) else {
+                return true;
+            };
+            let Some(binding) = profile
+                .bindings
+                .iter()
+                .find(|b| b.slot == claim.slot && b.channel == claim.channel)
+            else {
+                // The profile no longer uses this channel.
+                return true;
+            };
+            let Some(channel) = state
+                .device(&claim.slot)
+                .and_then(|d| d.channel(claim.channel))
+            else {
+                return true;
+            };
+            match channel.setpoint {
+                None => false, // unreadable: no evidence either way
+                Some(setpoint) => {
+                    (setpoint.volt - binding.preset.volt).abs() > SETPOINT_EPSILON
+                        || (setpoint.curr_limit - binding.preset.curr_limit).abs()
+                            > SETPOINT_EPSILON
+                }
+            }
+        })
+        .cloned()
+        .collect()
+}
+
+/// Setpoints are floats round-tripped through an instrument.
+const SETPOINT_EPSILON: f64 = 1e-3;
 
 /// Energise the rails a profile marks as on, in sequence.
 pub async fn power_on(
@@ -151,8 +211,29 @@ pub async fn power_on(
         }
     }
 
+    // Powering on without a prior apply is possible through the API, so the
+    // claim is taken here too rather than assumed.
+    claim_channels(store, &profile)?;
+
     tracing::info!(profile = %profile.name, "powered on profile");
     Ok(profile)
+}
+
+/// Switch a profile's rails off, wait, and bring them back up in sequence.
+///
+/// The action someone actually wants at a bench when a device under test has
+/// wedged. Sequencing matters more here than anywhere else: a device that needs
+/// its rails in order on the way up needs them in order every time, not only the
+/// first.
+pub async fn power_cycle(
+    store: &Store,
+    supervisor: &Supervisor,
+    profile_id: i64,
+    settle: Duration,
+) -> Result<DeviceProfile, ApplyError> {
+    power_off(store, supervisor, profile_id).await?;
+    tokio::time::sleep(settle).await;
+    power_on(store, supervisor, profile_id).await
 }
 
 /// Switch every rail of a profile off, in reverse sequence.

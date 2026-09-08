@@ -13,6 +13,7 @@ use tokio::sync::watch;
 use crate::actor::{self, CommandError, SupplyHandle};
 use crate::config::{Config, SupplyConfig};
 use crate::model::{ChannelView, DeviceStatus, DeviceView, OfflineCode, SystemState};
+use crate::store::Claim;
 
 pub struct Supervisor {
     handles: BTreeMap<String, SupplyHandle>,
@@ -94,6 +95,23 @@ impl Supervisor {
     /// The state as of right now, for one-shot HTTP reads.
     pub fn snapshot(&self) -> SystemState {
         self.state.read().unwrap().clone()
+    }
+
+    /// Replace the published ownership of every channel.
+    ///
+    /// Claims live in the database and are verified against the instruments
+    /// separately; this only carries the result into the state clients read, so
+    /// the supervisor never has to know what a profile is.
+    pub fn set_claims(&self, claims: &[Claim]) {
+        let mut state = self.state.write().unwrap();
+        for device in &mut state.devices {
+            for channel in &mut device.channels {
+                channel.claimed_by = claims
+                    .iter()
+                    .find(|c| c.slot == device.slot && c.channel == channel.id)
+                    .cloned();
+            }
+        }
     }
 
     /// Stamp and publish the current state. Called on the publish timer.

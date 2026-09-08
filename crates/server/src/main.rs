@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use clap::Parser;
 use dp832::{Transport, UsbTmcTransport};
-use psu_core::{Config, Store, Supervisor};
+use psu_core::{stale_claims, Config, Store, Supervisor};
 use tracing_subscriber::EnvFilter;
 
 use server::routes::{self, AppState};
@@ -108,6 +108,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(feature = "simulation"))]
     let _ = sim_registry;
 
+    // Ownership is verified against the instruments rather than remembered. A
+    // claim that no longer matches what its channel holds is dropped here, which
+    // is what makes "powered by this profile" a statement about the bench rather
+    // than about something the server once did.
+    let verifier = tokio::spawn({
+        let supervisor = Arc::clone(&supervisor);
+        let store = Arc::clone(&store);
+        async move {
+            let mut ticker = tokio::time::interval(Duration::from_secs(1));
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                ticker.tick().await;
+                let snapshot = supervisor.snapshot();
+                let (claims, profiles) = match (store.claims(), store.profiles()) {
+                    (Ok(c), Ok(p)) => (c, p),
+                    (c, p) => {
+                        if let Err(e) = c {
+                            tracing::warn!(error = %e, "could not read channel claims");
+                        }
+                        if let Err(e) = p {
+                            tracing::warn!(error = %e, "could not read profiles");
+                        }
+                        continue;
+                    }
+                };
+
+                let stale = stale_claims(&claims, &profiles, &snapshot);
+                for claim in &stale {
+                    tracing::info!(
+                        slot = %claim.slot,
+                        channel = %claim.channel,
+                        profile = %claim.profile_name,
+                        "releasing a claim: the channel no longer holds what the profile specifies"
+                    );
+                    if let Err(e) = store.release(&claim.slot, claim.channel) {
+                        tracing::warn!(error = %e, "could not release a claim");
+                    }
+                }
+
+                let live: Vec<_> = claims
+                    .into_iter()
+                    .filter(|c| {
+                        !stale
+                            .iter()
+                            .any(|s| s.slot == c.slot && s.channel == c.channel)
+                    })
+                    .collect();
+                supervisor.set_claims(&live);
+            }
+        }
+    });
+
     // Publish on a timer rather than on every change, so a burst of commands
     // cannot flood clients and everyone sees the same coherent picture.
     let publisher = tokio::spawn({
@@ -135,6 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     publisher.abort();
+    verifier.abort();
 
     // Hands every front panel back. Outputs are left exactly as they are:
     // stopping the service must not de-energise somebody's experiment.

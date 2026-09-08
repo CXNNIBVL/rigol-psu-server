@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use dp832::{ChannelId, Fault, SimulatedDp832};
+use dp832::{ChannelId, Fault, Setpoint, SimulatedDp832};
 use psu_core::{
     apply, power_off, power_on, Config, NewChannelPreset, NewDeviceProfile, NewProfileBinding,
     Store, Supervisor,
@@ -580,4 +580,164 @@ async fn an_existing_database_keeps_powering_up_the_way_it_did() {
 
     assert!(profile.bindings[0].output_on, "was auto-starting before");
     assert!(!profile.bindings[1].output_on, "was staged-only before");
+}
+
+#[tokio::test]
+async fn applying_claims_the_channels_it_writes() {
+    let b = bench();
+    wait_ready(&b).await;
+
+    let p = preset(&b.store, "3v3", 3.3);
+    let id = profile(&b.store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
+    assert!(b.store.claims().unwrap().is_empty());
+
+    apply(&b.store, &b.supervisor, id, false).await.unwrap();
+
+    let claims = b.store.claims().unwrap();
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0].slot, "psu1");
+    assert_eq!(claims[0].profile_name, "Board");
+
+    b.supervisor.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_claim_is_released_once_the_channel_stops_matching() {
+    // The property that makes ownership worth reporting: it is checked against
+    // the instrument, not remembered from the moment it was taken.
+    let b = bench();
+    wait_ready(&b).await;
+
+    let p = preset(&b.store, "3v3", 3.3);
+    let id = profile(&b.store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
+    apply(&b.store, &b.supervisor, id, false).await.unwrap();
+
+    let profiles = b.store.profiles().unwrap();
+    let claims = b.store.claims().unwrap();
+    assert!(psu_core::stale_claims(&claims, &profiles, &b.supervisor.snapshot()).is_empty());
+
+    // Somebody turns the knob.
+    b.sims["psu1"].front_panel_set(
+        ChannelId::Ch1,
+        Setpoint {
+            volt: 12.0,
+            curr_limit: 1.0,
+        },
+        false,
+    );
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while b
+        .supervisor
+        .snapshot()
+        .device("psu1")
+        .and_then(|d| d.channel(ChannelId::Ch1))
+        .and_then(|c| c.setpoint)
+        .map(|s| (s.volt - 12.0).abs() > 1e-6)
+        .unwrap_or(true)
+    {
+        assert!(Instant::now() < deadline, "the knob change was never seen");
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+
+    let stale = psu_core::stale_claims(&claims, &profiles, &b.supervisor.snapshot());
+    assert_eq!(stale.len(), 1, "the claim should not survive the change");
+
+    b.supervisor.shutdown().await;
+}
+
+#[tokio::test]
+async fn an_unreadable_channel_does_not_lose_its_claim() {
+    // A supply dropping off the bus for a moment is not evidence that anyone
+    // changed anything, and releasing on every blip would make ownership
+    // meaningless.
+    let b = bench();
+    wait_ready(&b).await;
+
+    let p = preset(&b.store, "3v3", 3.3);
+    let id = profile(&b.store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
+    apply(&b.store, &b.supervisor, id, false).await.unwrap();
+
+    b.sims["psu1"].set_fault(Fault::Disconnected);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while b
+        .supervisor
+        .snapshot()
+        .device("psu1")
+        .is_some_and(|d| d.status.is_online())
+    {
+        assert!(Instant::now() < deadline);
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+
+    let stale = psu_core::stale_claims(
+        &b.store.claims().unwrap(),
+        &b.store.profiles().unwrap(),
+        &b.supervisor.snapshot(),
+    );
+    assert!(stale.is_empty(), "an unreadable channel proves nothing");
+
+    b.supervisor.shutdown().await;
+}
+
+#[tokio::test]
+async fn deleting_a_profile_releases_its_claims() {
+    let b = bench();
+    wait_ready(&b).await;
+
+    let p = preset(&b.store, "3v3", 3.3);
+    let id = profile(&b.store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
+    apply(&b.store, &b.supervisor, id, false).await.unwrap();
+    assert_eq!(b.store.claims().unwrap().len(), 1);
+
+    b.store.delete_profile(id).unwrap();
+    assert!(
+        b.store.claims().unwrap().is_empty(),
+        "a claim means nothing without the profile that made it"
+    );
+
+    b.supervisor.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_second_profile_takes_over_the_channel() {
+    // One channel, one owner: two profiles cannot both have written the values
+    // it currently holds.
+    let b = bench();
+    wait_ready(&b).await;
+
+    let p = preset(&b.store, "3v3", 3.3);
+    let first = profile(&b.store, "First", vec![binding("psu1", "CH1", p, 1, 0)]);
+    let second = profile(&b.store, "Second", vec![binding("psu1", "CH1", p, 1, 0)]);
+
+    apply(&b.store, &b.supervisor, first, false).await.unwrap();
+    apply(&b.store, &b.supervisor, second, true).await.unwrap();
+
+    let claims = b.store.claims().unwrap();
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0].profile_name, "Second");
+
+    b.supervisor.shutdown().await;
+}
+
+#[tokio::test]
+async fn power_cycling_brings_the_rails_back_up() {
+    let b = bench();
+    wait_ready(&b).await;
+
+    let p = preset(&b.store, "3v3", 3.3);
+    let id = profile(&b.store, "Board", vec![binding("psu1", "CH1", p, 1, 0)]);
+    apply(&b.store, &b.supervisor, id, false).await.unwrap();
+    power_on(&b.store, &b.supervisor, id).await.unwrap();
+    assert!(b.sims["psu1"].output_state(ChannelId::Ch1));
+
+    psu_core::power_cycle(&b.store, &b.supervisor, id, Duration::from_millis(20))
+        .await
+        .unwrap();
+
+    assert!(
+        b.sims["psu1"].output_state(ChannelId::Ch1),
+        "a cycle ends with the rails up, not down"
+    );
+
+    b.supervisor.shutdown().await;
 }

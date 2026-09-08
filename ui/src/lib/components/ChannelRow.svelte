@@ -140,6 +140,16 @@
       {#if badge}
         <StatusBadge status={badge} />
       {/if}
+      {#if channel.claimed_by}
+        <!-- Who wrote these values. Verified against the instrument rather than
+             remembered, so it disappears as soon as anyone changes them. -->
+        <span
+          class="text-xs font-normal opacity-60 truncate"
+          title="Applied by {channel.claimed_by.profile_name}"
+        >
+          {channel.claimed_by.profile_name}
+        </span>
+      {/if}
     </span>
   </th>
 

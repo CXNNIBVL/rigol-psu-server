@@ -11,8 +11,8 @@ use axum::http::StatusCode;
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use psu_core::{
-    apply, power_off, power_on, ApplyError, ChannelPreset, DeviceProfile, NewChannelPreset,
-    NewDeviceProfile, StoreError,
+    apply, power_cycle, power_off, power_on, ApplyError, ChannelPreset, DeviceProfile,
+    NewChannelPreset, NewDeviceProfile, StoreError,
 };
 use serde::Deserialize;
 
@@ -34,6 +34,7 @@ pub fn routes() -> Router<AppState> {
         .route("/profiles/{id}/apply", post(apply_profile))
         .route("/profiles/{id}/power-on", post(power_on_profile))
         .route("/profiles/{id}/power-off", post(power_off_profile))
+        .route("/profiles/{id}/power-cycle", post(power_cycle_profile))
         // Named so the router does not silently accept a bare DELETE on the
         // collection.
         .route("/presets/", delete(method_not_allowed))
@@ -228,6 +229,29 @@ pub async fn power_off_profile(
     Path(id): Path<i64>,
 ) -> Result<Json<DeviceProfile>, ApiError> {
     let profile = power_off(&s.store, &s.supervisor, id)
+        .await
+        .map_err(apply_error)?;
+    Ok(Json(profile))
+}
+
+/// How long the rails stay down between the two halves of a power cycle.
+///
+/// Long enough for supply capacitance to bleed off on a small board, which is
+/// the point of cycling rather than merely toggling.
+const SETTLE: std::time::Duration = std::time::Duration::from_millis(500);
+
+#[utoipa::path(post, path = "/api/profiles/{id}/power-cycle", tag = "profiles",
+    params(("id" = i64, Path,)),
+    responses(
+        (status = 200, description = "Rails switched off, allowed to settle, then \
+            brought back up in sequence", body = DeviceProfile),
+        (status = 409, body = ApiError),
+        (status = 503, body = ApiError)))]
+pub async fn power_cycle_profile(
+    State(s): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<DeviceProfile>, ApiError> {
+    let profile = power_cycle(&s.store, &s.supervisor, id, SETTLE)
         .await
         .map_err(apply_error)?;
     Ok(Json(profile))

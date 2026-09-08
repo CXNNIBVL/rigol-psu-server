@@ -683,12 +683,66 @@ Two changes:
   the same rails at the same values, both say so rather than letting either
   imply it is the one that is running.
 
-What is deliberately *not* built: server-side attribution — recording which
-profile was last applied to each channel. It would answer "which one did I
-apply", but it is a *remembered* fact rather than an observed one, it goes stale
-the moment somebody turns a knob, and it still cannot say which board is
-physically connected. Worth doing only once that question is actually being
-asked at the bench.
+Attribution was initially left out on the grounds that a record of an action is
+a *remembered* fact wearing the clothes of an observed one. §18 shows how to
+build it without that flaw.
+
+---
+
+## 18. Claims: ownership the bench can verify
+
+The server now records which profile wrote each channel — a **claim**. Applying
+or powering on a profile claims its channels; deleting a profile releases them;
+a second profile applying over the top takes them over.
+
+The part that makes this trustworthy is that a claim is **falsifiable**. On
+every sweep the server compares each claimed channel against what the claiming
+profile specifies, and drops the claim the moment they diverge — a knob turned
+at the bench, a direct API write, an edited preset. Direct control releases it
+immediately rather than waiting for the sweep. So a claim is not "we remember
+doing this" but **"we did this and it is still true"**, which is what makes it
+safe to report.
+
+Two deliberate refusals in the verification:
+
+- **An unreadable channel keeps its claim.** A supply dropping off the bus for a
+  moment is not evidence that anybody changed anything, and releasing on every
+  blip would make ownership useless exactly when the bench is unstable.
+- **Switching a rail off by hand does not release it.** A claim tracks the
+  *values*, not the switches — the profile still owns what is written there, and
+  the card reports it as staged rather than powered.
+
+### What this changed in the labels
+
+`Powered` returns, and is now honest, because something knows:
+
+| Situation | Label |
+|---|---|
+| This profile owns the rails, all its energising rails on, values match | **Powered** |
+| This profile owns them, some on | **Partly powered** |
+| This profile owns them, none on | **Staged** |
+| Rails hold these settings but **another profile applied them** | **Rails match**, naming the owner |
+| Rails on, values diverged | **Live, values differ** |
+
+So the twin case resolves: rev C reads **Powered**, rev D reads **Rails match —
+Mainboard rev C is the profile that applied them**. The rails-first vocabulary
+from §17 was not wasted; it became the fallback for profiles that do not own
+what they describe, which is exactly where a weaker claim belongs.
+
+The bench names the owner on each claimed channel too, so a live rail says who
+put it there.
+
+### Power cycle
+
+`POST /api/profiles/{id}/power-cycle` — off, settle, then back up in sequence,
+with the profile's own dwells. Only offered while the profile actually owns
+powered rails, because cycling something you did not put up, or that is not up,
+is not an action that means anything. It confirms first: it de-energises
+something that is currently live.
+
+It still says nothing about which board is physically connected. A claim means
+"this profile owns these rails" and never "this device is on the bench" — that
+is outside what any wire can report.
 
 ---
 

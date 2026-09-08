@@ -10,6 +10,7 @@ use dp832::{ChannelId, Measurement, Protection, Setpoint};
 use serde::Serialize;
 
 use crate::clamp::{Clamp, ClampViolation};
+use crate::store::Claim;
 
 /// Why a supply is not answering. Machine-readable so the UI can say something
 /// specific rather than printing a string it cannot interpret.
@@ -95,6 +96,10 @@ pub struct ChannelView {
     pub setpoint: Option<Setpoint>,
     pub protection: Option<Protection>,
     pub output_on: Option<bool>,
+    /// Which profile wrote this channel's setpoints, if the channel still holds
+    /// them. Corroborated on every setpoint poll rather than remembered, so it
+    /// disappears the moment reality diverges.
+    pub claimed_by: Option<Claim>,
     /// Set when a channel was found live at startup with setpoints outside the
     /// current clamps. The output is deliberately left energised — a restart
     /// must not end someone's experiment — but writes are refused until a human
@@ -111,6 +116,7 @@ impl ChannelView {
             setpoint: None,
             protection: None,
             output_on: None,
+            claimed_by: None,
             violation: None,
         }
     }

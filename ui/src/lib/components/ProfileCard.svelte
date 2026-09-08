@@ -1,10 +1,16 @@
 <script lang="ts">
   import type { DeviceProfile, DeviceView } from '../types';
-  import { ApiFailure, applyProfile, powerOffProfile, powerOnProfile } from '../api';
   import {
-    indistinguishableFrom,
+    ApiFailure,
+    applyProfile,
+    powerCycleProfile,
+    powerOffProfile,
+    powerOnProfile,
+  } from '../api';
+  import {
     isStaged,
     profileState,
+    railsOwnedBy,
     stateDetail,
     stateLabel,
   } from '../profile-state';
@@ -14,15 +20,12 @@
   let {
     profile,
     devices,
-    siblings = [],
     onchange,
     onedit,
     ondelete,
   }: {
     profile: DeviceProfile;
     devices: DeviceView[];
-    /** All profiles, so this one can tell whether it is distinguishable. */
-    siblings?: DeviceProfile[];
     onchange?: () => void;
     onedit?: () => void;
     ondelete?: () => void;
@@ -34,21 +37,17 @@
 
   const condition = $derived(profileState(profile, devices));
   const staged = $derived(isStaged(profile, devices));
-  const detail = $derived(stateDetail(condition));
-
-  // Profiles describing the same rails at the same values are the same input to
-  // profileState, so they all read alike whichever device is actually plugged
-  // in. Saying so beats letting this one imply it is the one that is running.
-  const twins = $derived(indistinguishableFrom(profile, siblings));
-  const ambiguous = $derived(
-    twins.length > 0 && (condition === 'live' || condition === 'staged'),
-  );
+  const owner = $derived(railsOwnedBy(profile, devices));
+  const detail = $derived(stateDetail(condition, owner));
+  // Cycling de-energises something that is currently live, so it asks first.
+  let confirmingCycle = $state(false);
 
   const TONE: Record<string, string> = {
-    live: 'preset-tonal-success',
-    'live-altered': 'preset-tonal-warning',
-    'partly-live': 'preset-tonal-warning',
+    powered: 'preset-tonal-success',
+    'partly-powered': 'preset-tonal-warning',
     staged: 'preset-tonal',
+    matching: 'preset-tonal-surface',
+    'live-altered': 'preset-tonal-warning',
     idle: 'preset-tonal-surface',
     'not-visible': 'preset-tonal-warning',
   };
@@ -96,13 +95,7 @@
     </p>
   {/if}
 
-  {#if ambiguous}
-    <p class="text-xs preset-tonal-surface p-2 rounded" data-testid="profile-ambiguous">
-      These rails are described identically by
-      {twins.map((t) => t.name).join(', ')} — the bench cannot tell which device
-      is connected.
-    </p>
-  {/if}
+
 
   <!--
     A power-up sequence, drawn as one. Steps are numbered because this genuinely
@@ -159,6 +152,18 @@
     >
       Power off
     </button>
+    <button
+      class="btn btn-sm preset-tonal"
+      type="button"
+      disabled={busy || condition !== 'powered'}
+      title={condition === 'powered'
+        ? 'Switch these rails off, let them settle, and bring them back up in order'
+        : 'Only available while this profile has its rails powered'}
+      onclick={() => (confirmingCycle = true)}
+      data-testid="power-cycle"
+    >
+      Power cycle
+    </button>
 
     {#if !staged}
       <!-- A disabled control with no visible reason reads as a broken one. -->
@@ -180,6 +185,40 @@
       onclick={() => ondelete?.()}
     />
   </div>
+
+  {#if confirmingCycle}
+    <div
+      class="preset-tonal-warning p-3 rounded space-y-2"
+      role="alertdialog"
+      aria-label="Confirm power cycle"
+      data-testid="confirm-cycle"
+    >
+      <p class="text-sm">
+        Switch off <strong>{profile.name}</strong>, wait, then bring its rails back
+        up in order? Whatever is connected loses power for about half a second.
+      </p>
+      <div class="flex gap-2">
+        <button
+          class="btn btn-sm preset-filled-warning-500"
+          type="button"
+          onclick={() => {
+            confirmingCycle = false;
+            void run(() => powerCycleProfile(profile.id));
+          }}
+          data-testid="confirm-cycle-yes"
+        >
+          Power cycle
+        </button>
+        <button
+          class="btn btn-sm preset-tonal"
+          type="button"
+          onclick={() => (confirmingCycle = false)}
+        >
+          Leave it up
+        </button>
+      </div>
+    </div>
+  {/if}
 
   {#if error}
     <div class="preset-tonal-error p-3 rounded space-y-2" role="alert" data-testid="profile-error">

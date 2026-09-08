@@ -8,6 +8,7 @@ export function channel(over: Partial<ChannelView> = {}): ChannelView {
     setpoint: { volt: 3.3, curr_limit: 1.0 },
     protection: { ovp_level: 5.5, ovp_enabled: true, ocp_level: 2.0, ocp_enabled: true },
     output_on: true,
+    claimed_by: null,
     violation: null,
     ...over,
   };

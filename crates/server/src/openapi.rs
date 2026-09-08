@@ -11,8 +11,8 @@
 //! dependency for every consumer that does not want one.
 
 use psu_core::{
-    ChannelPreset, ChannelView, ClampViolation, DeviceProfile, DeviceStatus, DeviceView, Limits,
-    NewChannelPreset, NewDeviceProfile, NewProfileBinding, OfflineCode, ProfileBinding,
+    ChannelPreset, ChannelView, Claim, ClampViolation, DeviceProfile, DeviceStatus, DeviceView,
+    Limits, NewChannelPreset, NewDeviceProfile, NewProfileBinding, OfflineCode, ProfileBinding,
     SystemState,
 };
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
@@ -51,11 +51,12 @@ use crate::routes::{Accepted, OutputBody, ProtectionBody, SetpointBody};
         crate::profiles::apply_profile,
         crate::profiles::power_on_profile,
         crate::profiles::power_off_profile,
+        crate::profiles::power_cycle_profile,
     ),
     components(schemas(
         SystemState, DeviceView, DeviceStatus, ChannelView, Limits, OfflineCode,
         ClampViolation, ChannelPreset, NewChannelPreset, DeviceProfile, NewDeviceProfile,
-        ProfileBinding, NewProfileBinding,
+        ProfileBinding, NewProfileBinding, Claim,
         SetpointBody, ProtectionBody, OutputBody, Accepted, ApiError,
     )),
     modifiers(&NoteOnAccess),

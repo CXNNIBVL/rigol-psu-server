@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import ProfileCard from '../components/ProfileCard.svelte';
-import type { ChannelPreset, DeviceProfile, DeviceView } from '../types';
+import type { ChannelId, ChannelPreset, DeviceProfile, DeviceView } from '../types';
 import { channel, device } from './fixtures';
 
 function preset(over: Partial<ChannelPreset> = {}): ChannelPreset {
@@ -19,17 +19,37 @@ function preset(over: Partial<ChannelPreset> = {}): ChannelPreset {
   };
 }
 
+/** This profile's id, as the fixture below builds it. */
+const PROFILE_ID = 7;
+
+const claim = (id: ChannelId) => ({
+  slot: 'psu1',
+  channel: id,
+  profile_id: PROFILE_ID,
+  profile_name: 'Mainboard',
+});
+
 /**
- * A bench where the profile's rails exist and are switched off with the
- * profile's own setpoints already written — i.e. staged.
+ * A bench where this profile's rails are switched off holding its setpoints,
+ * and the server attributes them to it — i.e. staged by this profile.
  */
 function stagedBench(): DeviceView[] {
   return [
     device({
       slot: 'psu1',
       channels: [
-        channel({ id: 'CH1', output_on: false, setpoint: { volt: 1.2, curr_limit: 1.0 } }),
-        channel({ id: 'CH2', output_on: false, setpoint: { volt: 3.3, curr_limit: 1.0 } }),
+        channel({
+          id: 'CH1',
+          output_on: false,
+          setpoint: { volt: 1.2, curr_limit: 1.0 },
+          claimed_by: claim('CH1'),
+        }),
+        channel({
+          id: 'CH2',
+          output_on: false,
+          setpoint: { volt: 3.3, curr_limit: 1.0 },
+          claimed_by: claim('CH2'),
+        }),
       ],
     }),
   ];
@@ -131,23 +151,6 @@ describe('ProfileCard', () => {
     expect(screen.getByTestId('profile-status')).toHaveTextContent('Staged');
   });
 
-  it('reports live rails, not a powered device', () => {
-    // The bench sees rails. Nothing on the wire says which board is plugged
-    // into them, so the label does not claim one.
-    const live = [
-      device({
-        slot: 'psu1',
-        channels: [
-          channel({ id: 'CH1', output_on: true, setpoint: { volt: 1.2, curr_limit: 1 } }),
-          channel({ id: 'CH2', output_on: false, setpoint: { volt: 3.3, curr_limit: 1 } }),
-        ],
-      }),
-    ];
-    // CH2 is staged-only in this profile, so CH1 alone being on is fully live.
-    render(ProfileCard, { profile: profile(), devices: live });
-    expect(screen.getByTestId('profile-status')).toHaveTextContent('Rails live');
-  });
-
   it('says so when the rails are on but not at this profile\'s values', () => {
     // The switches alone used to be enough: a rail turned up by hand still read
     // as fully applied, which is the one case where being wrong costs hardware.
@@ -165,25 +168,78 @@ describe('ProfileCard', () => {
     expect(screen.getByTestId('profile-detail')).toHaveTextContent(/something changed them/i);
   });
 
-  it('names the profiles it cannot be told apart from', () => {
-    // Two profiles describing the same rails at the same values are the same
-    // input to the bench, so both read alike whichever board is connected.
-    const twin = { ...profile(), id: 99, name: 'Mainboard rev D' };
-    render(ProfileCard, {
-      profile: profile(),
-      devices: stagedBench(),
-      siblings: [profile(), twin],
-    });
-    expect(screen.getByTestId('profile-ambiguous')).toHaveTextContent('Mainboard rev D');
+  it('names the profile that actually applied these rails', () => {
+    // The answer to two profiles describing the same rails: they look identical
+    // to the instruments, but only one of them wrote the values.
+    const owned = stagedBench().map((d) => ({
+      ...d,
+      channels: d.channels.map((c) => ({
+        ...c,
+        claimed_by: {
+          slot: 'psu1',
+          channel: c.id,
+          profile_id: 99,
+          profile_name: 'Mainboard rev D',
+        },
+      })),
+    }));
+
+    render(ProfileCard, { profile: profile(), devices: owned });
+    expect(screen.getByTestId('profile-status')).toHaveTextContent('Rails match');
+    expect(screen.getByTestId('profile-detail')).toHaveTextContent('Mainboard rev D');
   });
 
-  it('says nothing about ambiguity when the profile is unique', () => {
-    render(ProfileCard, {
-      profile: profile(),
-      devices: stagedBench(),
-      siblings: [profile()],
-    });
-    expect(screen.queryByTestId('profile-ambiguous')).not.toBeInTheDocument();
+  it('reads as powered only when this profile owns the rails', () => {
+    const live = (claimedBy: number | null) =>
+      [
+        device({
+          slot: 'psu1',
+          channels: [
+            channel({
+              id: 'CH1',
+              output_on: true,
+              setpoint: { volt: 1.2, curr_limit: 1 },
+              claimed_by: claimedBy
+                ? {
+                    slot: 'psu1',
+                    channel: 'CH1' as const,
+                    profile_id: claimedBy,
+                    profile_name: 'owner',
+                  }
+                : null,
+            }),
+            channel({
+              id: 'CH2',
+              output_on: false,
+              setpoint: { volt: 3.3, curr_limit: 1 },
+              claimed_by: claimedBy
+                ? {
+                    slot: 'psu1',
+                    channel: 'CH2' as const,
+                    profile_id: claimedBy,
+                    profile_name: 'owner',
+                  }
+                : null,
+            }),
+          ],
+        }),
+      ];
+
+    // Nobody applied these; they merely match.
+    const { unmount } = render(ProfileCard, { profile: profile(), devices: live(null) });
+    expect(screen.getByTestId('profile-status')).toHaveTextContent('Rails match');
+    unmount();
+
+    // This profile applied them.
+    render(ProfileCard, { profile: profile(), devices: live(7) });
+    expect(screen.getByTestId('profile-status')).toHaveTextContent('Powered');
+  });
+
+  it('offers a power cycle only while it owns powered rails', () => {
+    // Cycling something you did not put up, or that is not up, is not an
+    // action that means anything.
+    render(ProfileCard, { profile: profile(), devices: stagedBench() });
+    expect(screen.getByTestId('power-cycle')).toBeDisabled();
   });
 
   it('power off is always available, staged or not', () => {

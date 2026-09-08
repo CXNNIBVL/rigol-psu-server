@@ -18,9 +18,9 @@ pub use actor::{CommandError, SupplyHandle};
 pub use clamp::{Clamp, ClampViolation};
 pub use config::{ChannelConfig, Config, ConfigError, PollConfig, SupplyConfig};
 pub use model::{ChannelView, DeviceStatus, DeviceView, Limits, OfflineCode, SystemState};
-pub use profile::{apply, power_off, power_on, ApplyError};
+pub use profile::{apply, power_cycle, power_off, power_on, stale_claims, ApplyError};
 pub use store::{
-    ChannelPreset, DeviceProfile, NewChannelPreset, NewDeviceProfile, NewProfileBinding,
+    ChannelPreset, Claim, DeviceProfile, NewChannelPreset, NewDeviceProfile, NewProfileBinding,
     ProfileBinding, Store, StoreError,
 };
 pub use supervisor::Supervisor;

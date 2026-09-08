@@ -18,10 +18,11 @@ import type { DeviceProfile, DeviceView, ProfileBinding } from './types';
 const EPSILON = 1e-3;
 
 export type ProfileState =
-  | 'live'
-  | 'live-altered'
-  | 'partly-live'
+  | 'powered'
+  | 'partly-powered'
   | 'staged'
+  | 'matching'
+  | 'live-altered'
   | 'idle'
   | 'not-visible';
 
@@ -44,6 +45,33 @@ export function isStaged(profile: DeviceProfile, devices: DeviceView[]): boolean
   });
 }
 
+/** Whether the server currently attributes every one of these rails to this profile. */
+export function ownsRails(profile: DeviceProfile, devices: DeviceView[]): boolean {
+  if (profile.bindings.length === 0) return false;
+  return profile.bindings.every(
+    (b) => boundChannel(devices, b)?.claimed_by?.profile_id === profile.id,
+  );
+}
+
+/**
+ * The profile that currently owns these rails, when it is not this one.
+ *
+ * This is what makes two identically-described profiles distinguishable. They
+ * look the same to the instruments, but only one of them wrote the values.
+ */
+export function railsOwnedBy(
+  profile: DeviceProfile,
+  devices: DeviceView[],
+): string | null {
+  const owners = new Set(
+    profile.bindings
+      .map((b) => boundChannel(devices, b)?.claimed_by)
+      .filter((c) => c != null && c.profile_id !== profile.id)
+      .map((c) => c!.profile_name),
+  );
+  return owners.size === 1 ? [...owners][0]! : null;
+}
+
 export function profileState(
   profile: DeviceProfile,
   devices: DeviceView[],
@@ -61,29 +89,37 @@ export function profileState(
     (b) => boundChannel(devices, b)?.output_on === true,
   ).length;
   const holdsSettings = isStaged(profile, devices);
+  const allOn = energising.length > 0 && on === energising.length;
 
-  if (energising.length > 0 && on === energising.length) {
-    // Switches alone are not enough. A rail turned up to 12 V by hand on a
-    // profile that specifies 1.2 V had every switch in the right position and
-    // read as fully applied, which is the one case where being wrong costs
-    // hardware.
-    return holdsSettings ? 'live' : 'live-altered';
-  }
-  if (on > 0) return 'partly-live';
-  return holdsSettings ? 'staged' : 'idle';
+  // Switches alone are not enough. A rail turned up by hand on a profile that
+  // specifies something lower had every switch in the right position and read
+  // as fully applied — the one case where being wrong costs hardware.
+  if (allOn && !holdsSettings) return 'live-altered';
+  if (!holdsSettings && on === 0) return 'idle';
+
+  // The rails hold these settings. Whether that is *this* profile's doing is a
+  // separate question, and only the server's record can answer it: two profiles
+  // describing the same rails look identical to the instruments.
+  if (!ownsRails(profile, devices)) return 'matching';
+
+  if (allOn) return 'powered';
+  if (on > 0) return 'partly-powered';
+  return 'staged';
 }
 
 export function stateLabel(state: ProfileState): string {
   switch (state) {
-    case 'live':
-      return 'Rails live';
-    case 'live-altered':
-      return 'Live, values differ';
-    case 'partly-live':
+    case 'powered':
+      return 'Powered';
+    case 'partly-powered':
       // Worth its own word: a device half up is a situation, not a stage.
-      return 'Partly live';
+      return 'Partly powered';
     case 'staged':
       return 'Staged';
+    case 'matching':
+      return 'Rails match';
+    case 'live-altered':
+      return 'Live, values differ';
     case 'idle':
       return 'Not applied';
     case 'not-visible':
@@ -91,41 +127,22 @@ export function stateLabel(state: ProfileState): string {
   }
 }
 
-export function stateDetail(state: ProfileState): string | null {
+export function stateDetail(
+  state: ProfileState,
+  owner: string | null,
+): string | null {
   switch (state) {
+    case 'matching':
+      return owner
+        ? `These rails hold this profile's settings, but ${owner} is the profile that applied them.`
+        : "These rails happen to hold this profile's settings, but no profile applied them.";
     case 'live-altered':
       return 'These rails are on, but their values are not the ones this profile specifies — something changed them.';
-    case 'partly-live':
-      return 'Some of these rails are on and some are not.';
+    case 'partly-powered':
+      return 'Some of this profile\'s rails are on and some are not.';
     case 'not-visible':
       return 'A rail this profile uses cannot be read right now.';
     default:
       return null;
   }
-}
-
-/**
- * Other profiles that describe exactly the same rails at the same values.
- *
- * Two such profiles are indistinguishable to the bench: they are the same input
- * to `profileState`, so both read the same way whichever device is actually
- * plugged in. Naming them is the honest alternative to letting one of them
- * imply it is the one that is running.
- */
-export function indistinguishableFrom(
-  profile: DeviceProfile,
-  all: DeviceProfile[],
-): DeviceProfile[] {
-  const fingerprint = (p: DeviceProfile) =>
-    p.bindings
-      .map(
-        (b) =>
-          `${b.slot}/${b.channel}@${b.preset.volt.toFixed(3)}/${b.preset.curr_limit.toFixed(3)}`,
-      )
-      .sort()
-      .join('|');
-
-  if (profile.bindings.length === 0) return [];
-  const mine = fingerprint(profile);
-  return all.filter((p) => p.id !== profile.id && fingerprint(p) === mine);
 }
