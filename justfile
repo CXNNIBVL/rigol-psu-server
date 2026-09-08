@@ -3,7 +3,8 @@
 # The UI build is an explicit step rather than something a build.rs shells out
 # to: making `cargo check` depend on npm would be both slow and surprising.
 
-default: fmt lint test
+default: 
+  {{just_executable()}} --list
 
 # Run the test suite (nextest). Excludes `hw_*` tests, which need real supplies.
 test:
