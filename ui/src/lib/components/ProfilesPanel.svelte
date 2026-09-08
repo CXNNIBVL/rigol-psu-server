@@ -98,29 +98,24 @@
   full-width on purpose — its table really does have seven columns of numbers
   to place.
 -->
-<section class="space-y-4 max-w-4xl" data-testid="profiles-panel">
-  <div class="flex items-center justify-between gap-2">
+<section class="space-y-4 max-w-6xl" data-testid="profiles-panel">
+  <div class="space-y-3">
     <div>
       <h2 class="h3">Device profiles</h2>
       <p class="text-sm opacity-70">
         A profile is a device and the rails it needs, in the order they come up.
       </p>
     </div>
+
     {#if !empty}
-      <div class="flex items-center gap-3">
-        <SearchBox
-          bind:value={query}
-          label="Search profiles"
-          count={shown.length}
-          total={profiles.length}
-        />
-        <ActionIcon
-          action="new"
-          label="New profile"
-          testid="new-profile"
-          onclick={() => (editing = null)}
-        />
-      </div>
+      <!-- Under the heading rather than in the far corner. It filters both
+           columns, so it belongs to the section, not to either list. -->
+      <SearchBox
+        bind:value={query}
+        label="Search profiles"
+        count={shown.length}
+        total={profiles.length}
+      />
     {/if}
   </div>
 
@@ -184,17 +179,19 @@
     </p>
   {/if}
 
-  <!-- A list rather than a grid: profiles vary in length, and forcing them into
-       columns produced rows of wildly different heights. Scrolls within itself
-       so the search box stays reachable however many there are. -->
-  <div class="space-y-4">
-    <!-- Outside the scrolling region on purpose: a powered device must not be
-         something you have to scroll to find. Only the idle list scrolls. -->
-    {#if live.length > 0}
-      <div class="space-y-3" data-testid="live-profiles">
-        <h3 class="text-xs opacity-60">
-          Live &mdash; {live.length} of {shown.length}
-        </h3>
+  <!--
+    Two columns: what is running on the left, what is not on the right. Each
+    scrolls on its own, so a long list of idle profiles cannot push a powered
+    device off the page — the thing that must not happen on a bench.
+  -->
+  {#if !empty}
+  <div class="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <div class="space-y-3">
+      <h3 class="text-xs opacity-60">Live &mdash; {live.length}</h3>
+      <div
+        class="space-y-3 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
+        data-testid="live-profiles"
+      >
         {#each live as profile (profile.id)}
           <ProfileCard
             {profile}
@@ -204,17 +201,36 @@
             ondelete={() => (confirming = profile)}
           />
         {/each}
+        {#if live.length === 0}
+          <p class="text-sm opacity-60">
+            {query
+              ? 'No live profile matches.'
+              : 'Nothing is powered. Apply a profile and switch it on to see it here.'}
+          </p>
+        {/if}
       </div>
-    {/if}
+    </div>
 
-    {#if idle.length > 0}
+    <div class="space-y-3">
+      <h3 class="text-xs opacity-60">Idle &mdash; {idle.length}</h3>
       <div
-        class="space-y-2 max-h-[calc(100vh-22rem)] overflow-y-auto pr-1"
+        class="space-y-2 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
         data-testid="idle-profiles"
       >
-        {#if live.length > 0}
-          <h3 class="text-xs opacity-60">Idle</h3>
-        {/if}
+        <!-- The add action lives at the top of the list it creates into, where
+             what it makes will appear, rather than as an icon in a corner. -->
+        <button
+          class="flex w-full items-center justify-center gap-2 rounded border border-dashed border-surface-300-700 p-3 text-sm opacity-70 hover:opacity-100 hover:border-success-500"
+          type="button"
+          onclick={() => (editing = null)}
+          data-testid="new-profile"
+        >
+          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New profile
+        </button>
+
         {#each idle as profile (profile.id)}
           <ProfileCard
             {profile}
@@ -231,8 +247,9 @@
           />
         {/each}
       </div>
-    {/if}
+    </div>
   </div>
+  {/if}
 
   {#if confirming}
     <!-- A profile is minutes of work; a misclick should not be enough to lose

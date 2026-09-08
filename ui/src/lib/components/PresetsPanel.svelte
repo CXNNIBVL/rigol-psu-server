@@ -140,7 +140,7 @@
 </script>
 
 <section class="space-y-4" data-testid="presets-panel">
-  <div class="flex items-start justify-between gap-4">
+  <div class="space-y-3">
     <div>
       <h2 class="h3">Rail settings</h2>
       <p class="text-sm opacity-70">
@@ -148,16 +148,16 @@
         their own they are not applied to anything.
       </p>
     </div>
+
     {#if !empty}
-      <div class="flex items-center gap-3">
-        <SearchBox
-          bind:value={query}
-          label="Search settings"
-          count={shown.length}
-          total={presets.length}
-        />
-        <ActionIcon action="new" label="New settings" testid="new-preset" onclick={create} />
-      </div>
+      <!-- Under the heading, with the list it filters, rather than in the far
+           corner of the page. -->
+      <SearchBox
+        bind:value={query}
+        label="Search settings"
+        count={shown.length}
+        total={presets.length}
+      />
     {/if}
   </div>
 
@@ -195,6 +195,23 @@
         </tr>
       </thead>
       <tbody>
+        <tr class="border-t border-surface-200-800">
+          <td colspan="7" class="p-0">
+            <!-- At the top of the list it creates into, where what it makes
+                 will appear, rather than as an icon in a far corner. -->
+            <button
+              class="flex w-full items-center gap-2 p-3 text-sm opacity-70 hover:opacity-100"
+              type="button"
+              onclick={create}
+              data-testid="new-preset"
+            >
+              <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              New settings
+            </button>
+          </td>
+        </tr>
         {#each shown as preset (preset.id)}
           <tr class="border-t border-surface-200-800" data-testid="preset-{preset.id}">
             <th scope="row" class="p-3 text-left font-semibold">{preset.name}</th>

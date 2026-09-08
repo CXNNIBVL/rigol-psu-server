@@ -375,4 +375,36 @@ describe('ProfileCard', () => {
     // An idle rail reads as a dash here too, never a fabricated zero.
     expect(sequence).toHaveTextContent('—');
   });
+
+  it('a collapsed card draws only the controls that can act', () => {
+    // In the idle column the card is one line and every profile is unapplied,
+    // so a disabled power button and a disabled cycle button on each of them
+    // was width spent on things nobody could press.
+    const { unmount } = render(ProfileCard, {
+      profile: profile(),
+      devices: idleBench(),
+      compact: true,
+    });
+    expect(screen.queryByRole('button', { name: /Mainboard power/ })).toBeNull();
+    expect(screen.queryByTestId('power-cycle')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Apply setpoints' })).toBeEnabled();
+    unmount();
+
+    // Expanded, they are present and disabled: the full card still says what
+    // exists and why it is unavailable.
+    render(ProfileCard, { profile: profile(), devices: idleBench() });
+    expect(screen.getByRole('button', { name: /Mainboard power/ })).toBeDisabled();
+    expect(screen.getByTestId('power-cycle')).toBeDisabled();
+  });
+
+  it('a collapsed card offers power once its setpoints are staged', () => {
+    // Nothing is hidden that could have been pressed: the moment applying makes
+    // the control usable, it appears.
+    render(ProfileCard, {
+      profile: profile(),
+      devices: stagedBench(),
+      compact: true,
+    });
+    expect(screen.getByRole('button', { name: /Mainboard power/ })).toBeEnabled();
+  });
 });

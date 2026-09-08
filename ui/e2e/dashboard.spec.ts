@@ -37,9 +37,10 @@ async function open(page: Page, section: 'bench' | 'profiles' | 'presets' = 'ben
 /**
  * Start creating a preset or a profile.
  *
- * An empty list carries the action itself; a populated one has the icon in its
- * header. Which is present depends on what earlier tests happened to create, so
- * this takes whichever is there rather than making tests order-dependent.
+ * An empty list carries the action in its empty state; a populated one carries
+ * it as the first entry of the list. Which is present depends on what earlier
+ * tests happened to create, so this takes whichever is there rather than making
+ * tests order-dependent.
  */
 /**
  * Put a profile's rails down again.
@@ -236,8 +237,10 @@ test.describe('profiles', () => {
     await expect(card).toBeVisible();
 
     // Power is unavailable until setpoints have been staged: with nothing on
-    // and nothing staged the control has nothing to do in either direction.
-    await expect(profilePower(card)).toBeDisabled();
+    // and nothing staged the control has nothing to do in either direction. In
+    // the idle column the card is collapsed, and a control that cannot act is
+    // not drawn at all.
+    await expect(profilePower(card)).toHaveCount(0);
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
     await expect(profilePower(card)).toBeEnabled();
 
@@ -577,13 +580,38 @@ test.describe('lists', () => {
 
   test('the action icons carry accessible names', async ({ page }) => {
     // Icon-only controls have no visible text to fall back on, so the label is
-    // the only thing a screen reader or a hover has to go on.
+    // the only thing a screen reader or a hover has to go on. Adding is no
+    // longer one of them — it sits in the list it adds to and says so in words.
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `named-${stamp}`, volt: 1, curr_limit: 1,
+        ovp_level: 2, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    const created = await page.request.post('/api/profiles', {
+      data: {
+        name: `Named ${stamp}`, description: '',
+        bindings: [{
+          slot: 'psu2', channel: 'CH3', preset_id: (await preset.json()).id,
+          sequence_order: 1, delay_ms: 0, output_on: true,
+        }],
+      },
+    });
+    const id = (await created.json()).id;
+
     await open(page, 'profiles');
-    await expect(page.getByTestId('new-profile')).toHaveAttribute(
-      'aria-label',
-      'New profile',
-    );
-    await expect(page.getByTestId('new-profile')).toHaveAttribute('title', 'New profile');
+    await expect(page.getByTestId('new-profile')).toContainText('New profile');
+
+    const icons: [string, string][] = [
+      [`edit-profile-${id}`, `Edit Named ${stamp}`],
+      [`delete-profile-${id}`, `Delete Named ${stamp}`],
+    ];
+    for (const [testid, label] of icons) {
+      const icon = page.getByTestId(testid);
+      await expect(icon).toHaveAttribute('aria-label', label);
+      await expect(icon).toHaveAttribute('title', label);
+    }
   });
 
   test('a new profile starts from an empty form', async ({ page }) => {
@@ -756,8 +784,9 @@ test.describe('lists', () => {
     await open(page, 'profiles');
     const card = page.getByTestId(`profile-${profileId}`);
 
-    // Nothing to cycle until this profile has its rails up.
-    await expect(card.getByTestId('power-cycle')).toBeDisabled();
+    // Nothing to cycle until this profile has its rails up, and the collapsed
+    // card in the idle column does not draw a control that cannot act.
+    await expect(card.getByTestId('power-cycle')).toHaveCount(0);
 
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
     await profilePower(card).click();

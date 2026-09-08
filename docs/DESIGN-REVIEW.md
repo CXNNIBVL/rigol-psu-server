@@ -942,6 +942,42 @@ content does.
 
 ---
 
+## 24. Two columns, and where the add button lives
+
+The single column made the page a queue: a powered device sat above a list of
+things that are not running, and adding a fifth idle profile pushed it further
+down. On a bench the running thing is the one that must not move.
+
+**Live left, idle right.** Two columns, each scrolling in its own box. The left
+column holds what is powered — full cards, with measured values beside the
+specified ones. The right holds everything else, collapsed to a line. Neither
+list can push the other off the screen, and the split answers the first question
+you have when you walk up to the bench without you reading anything.
+
+**The add button lives in the list it adds to.** A plus icon in a section's top
+right corner is a habit, not a decision: it is the furthest point on the page
+from the thing it creates, it is icon-only so it has to be labelled by
+attribute, and it sits in the same corner on every screen whatever it makes.
+Moved to the head of the idle list, it is where the new profile will appear, it
+says "New profile" in words, and it is the width of the column so it is hard to
+miss. The rail settings table gets the same treatment — a "New settings" row at
+the top of the table it adds a row to.
+
+**The search moves under the heading.** It filters both columns, so it belongs
+to the section rather than to either list, and it no longer shares a corner with
+an action it has nothing to do with. Its count is silent until you type: a bare
+total beside an empty box is a number with no question attached to it, and the
+column headings already say how many each list holds.
+
+**A collapsed card draws only the controls that can act.** Every idle profile
+carried a disabled power button, a disabled cycle button and a line of text
+explaining that you have to apply the setpoints first — three pieces of chrome
+saying the same thing, on every card in the column. Collapsed, the card shows
+`Apply setpoints`, which is the only thing you can do; the power button appears
+the moment applying makes it usable. Nothing is hidden that you could have
+pressed. The expanded card is unchanged: there, the disabled controls are worth
+their space because the card is claiming to be the full picture.
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

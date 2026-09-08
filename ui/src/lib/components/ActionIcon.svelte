@@ -22,7 +22,7 @@
     title,
     testid,
   }: {
-    action: 'new' | 'edit' | 'delete' | 'confirm' | 'dismiss' | 'cycle';
+    action: 'edit' | 'delete' | 'confirm' | 'dismiss' | 'cycle';
     label: string;
     onclick?: () => void;
     disabled?: boolean;
@@ -32,7 +32,6 @@
 
   // Whole literal strings — Tailwind cannot see a class assembled at runtime.
   const TONE = {
-    new: 'hover:text-success-500 focus-visible:text-success-500',
     edit: 'hover:text-warning-500 focus-visible:text-warning-500',
     delete: 'hover:text-error-500 focus-visible:text-error-500',
     confirm: 'hover:text-success-500 focus-visible:text-success-500',
@@ -65,9 +64,7 @@
     stroke-linejoin="round"
     aria-hidden="true"
   >
-    {#if action === 'new'}
-      <path d="M12 5v14M5 12h14" />
-    {:else if action === 'edit'}
+    {#if action === 'edit'}
       <!-- Pencil -->
       <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z" />
       <path d="M14.5 6.5l3 3" />

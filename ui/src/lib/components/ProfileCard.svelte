@@ -108,18 +108,21 @@
 </script>
 
 <article
-  class="card preset-outlined-surface-200-800 p-4 space-y-3"
+  class="card preset-outlined-surface-200-800 {compact ? 'p-3 space-y-2' : 'p-4 space-y-3'}"
   data-testid="profile-{profile.id}"
   data-profile-state={condition}
 >
   <header class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
     <div>
-      <h3 class="h4">{profile.name}</h3>
+      <h3 class={compact ? 'text-base font-semibold' : 'h4'}>{profile.name}</h3>
       {#if profile.description}
         <p class="text-sm opacity-70">{profile.description}</p>
       {/if}
     </div>
-    <span class="badge {TONE[condition]} text-sm px-3 py-1" data-testid="profile-status">
+    <span
+      class="badge {TONE[condition]} {compact ? 'text-xs px-2 py-0.5' : 'text-sm px-3 py-1'}"
+      data-testid="profile-status"
+    >
       {stateLabel(condition)}
     </span>
   </header>
@@ -223,25 +226,35 @@
       Apply setpoints
     </button>
 
-    <PowerButton
-      on={anyOn}
-      disabled={cannotToggle}
-      {busy}
-      label="{profile.name} power"
-      onToggle={(next) =>
-        run(() => (next ? powerOnProfile(profile.id) : powerOffProfile(profile.id)))}
-    />
+    <!--
+      Collapsed in a side column, a control that cannot act is just width. The
+      power button reappears the moment the setpoints are applied, which is the
+      only thing that makes it usable — so nothing is hidden that you could have
+      pressed.
+    -->
+    {#if !compact || !cannotToggle}
+      <PowerButton
+        on={anyOn}
+        disabled={cannotToggle}
+        {busy}
+        label="{profile.name} power"
+        onToggle={(next) =>
+          run(() => (next ? powerOnProfile(profile.id) : powerOffProfile(profile.id)))}
+      />
+    {/if}
 
-    <ActionIcon
-      action="cycle"
-      label="Power cycle {profile.name}"
-      testid="power-cycle"
-      disabled={busy || condition !== 'powered'}
-      title={condition === 'powered'
-        ? 'Switch these rails off, let them settle, and bring them back up in order'
-        : 'Only available while this profile has its rails powered'}
-      onclick={() => (confirmingCycle = true)}
-    />
+    {#if !compact || condition === 'powered'}
+      <ActionIcon
+        action="cycle"
+        label="Power cycle {profile.name}"
+        testid="power-cycle"
+        disabled={busy || condition !== 'powered'}
+        title={condition === 'powered'
+          ? 'Switch these rails off, let them settle, and bring them back up in order'
+          : 'Only available while this profile has its rails powered'}
+        onclick={() => (confirmingCycle = true)}
+      />
+    {/if}
 
     <span class="grow"></span>
     <!-- Inside the card, because they act on it. -->
@@ -259,7 +272,7 @@
     />
   </div>
 
-  {#if cannotToggle}
+  {#if cannotToggle && !compact}
     <!-- On its own line: inside the action row it made this card's controls a
          different width from every other card's, so the column of power buttons
          did not line up. Shown only when the control is genuinely blocked —
