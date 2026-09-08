@@ -5,3 +5,6 @@ ui/dist/
 *.db-journal
 ui/test-results/
 ui/playwright-report/
+
+# Review screenshots, taken to look at the UI and not part of the repo.
+*.png
