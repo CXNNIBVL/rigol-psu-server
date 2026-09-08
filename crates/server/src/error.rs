@@ -12,7 +12,8 @@ use axum::Json;
 use psu_core::{ClampViolation, CommandError};
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[schema(as = ApiError, title = "ApiError")]
 pub struct ApiError {
     pub code: &'static str,
     pub message: String,
@@ -29,7 +30,9 @@ pub struct ApiError {
     /// user to retry something that will always be refused.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub forceable: bool,
+    /// Not serialised; carried so the handler can choose the HTTP status.
     #[serde(skip)]
+    #[schema(ignore)]
     pub status: StatusCode,
 }
 

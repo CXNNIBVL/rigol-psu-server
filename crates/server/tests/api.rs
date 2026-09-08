@@ -239,3 +239,131 @@ async fn fault_injection_is_refused_without_a_simulation_registry() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     h.supervisor.shutdown().await;
 }
+
+mod openapi {
+    use super::*;
+
+    /// Paths the document must describe. Listed explicitly rather than derived
+    /// from the router, so adding an endpoint and forgetting to document it
+    /// fails here instead of quietly shipping an incomplete spec.
+    const DOCUMENTED: &[&str] = &[
+        "/api/state",
+        "/api/devices",
+        "/api/devices/{slot}/channels/{channel}/setpoint",
+        "/api/devices/{slot}/channels/{channel}/protection",
+        "/api/devices/{slot}/channels/{channel}/output",
+        "/api/presets",
+        "/api/presets/{id}",
+        "/api/profiles",
+        "/api/profiles/{id}",
+        "/api/profiles/{id}/apply",
+        "/api/profiles/{id}/power-on",
+        "/api/profiles/{id}/power-off",
+    ];
+
+    async fn spec(h: &Harness) -> Value {
+        let response = h
+            .router
+            .clone()
+            .oneshot(
+                Request::get("/api/openapi.json")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        body_json(response).await
+    }
+
+    #[tokio::test]
+    async fn describes_every_endpoint() {
+        let h = harness();
+        let doc = spec(&h).await;
+        let paths = doc["paths"].as_object().expect("paths object");
+
+        let missing: Vec<&str> = DOCUMENTED
+            .iter()
+            .copied()
+            .filter(|p| !paths.contains_key(*p))
+            .collect();
+        assert!(missing.is_empty(), "undocumented endpoints: {missing:?}");
+
+        h.supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn the_simulation_route_is_never_documented() {
+        // It does not exist in a release build, and advertising it in the
+        // published contract would be worse than useless.
+        let h = harness();
+        let doc = spec(&h).await;
+        let paths = doc["paths"].as_object().unwrap();
+        assert!(paths.keys().all(|p| !p.contains("/sim/")));
+        h.supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn schemas_come_from_the_domain_types() {
+        // These are derived in psu-core and dp832 behind the `openapi` feature
+        // rather than restated here, so the document cannot drift from what the
+        // handlers actually return.
+        let h = harness();
+        let doc = spec(&h).await;
+        let schemas = doc["components"]["schemas"].as_object().expect("schemas");
+
+        for name in [
+            "SystemState",
+            "DeviceView",
+            "ChannelView",
+            "ChannelPreset",
+            "DeviceProfile",
+            "ProfileBinding",
+            "ApiError",
+        ] {
+            assert!(schemas.contains_key(name), "missing schema {name}");
+        }
+
+        h.supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn a_channel_reading_is_documented_as_nullable() {
+        // The single most important thing a client can get wrong. If the schema
+        // says a measurement is always present, a generated client will happily
+        // default it to zero — which is the exact lie the whole system exists to
+        // avoid.
+        let h = harness();
+        let doc = spec(&h).await;
+        let channel = &doc["components"]["schemas"]["ChannelView"];
+        let required = channel["required"].as_array().cloned().unwrap_or_default();
+
+        for field in ["measurement", "setpoint", "output_on"] {
+            assert!(
+                !required.iter().any(|r| r == field),
+                "{field} must not be documented as always present"
+            );
+        }
+
+        h.supervisor.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn the_force_parameter_is_documented_with_its_limits() {
+        let h = harness();
+        let doc = spec(&h).await;
+        let params = doc["paths"]["/api/profiles/{id}/apply"]["post"]["parameters"]
+            .as_array()
+            .expect("apply takes parameters");
+        let force = params
+            .iter()
+            .find(|p| p["name"] == "force")
+            .expect("force parameter");
+        let description = force["description"].as_str().unwrap_or_default();
+
+        // A reader must not be able to conclude that force relaxes a limit.
+        assert!(description.contains("nothing else"), "got: {description}");
+
+        h.supervisor.shutdown().await;
+    }
+}

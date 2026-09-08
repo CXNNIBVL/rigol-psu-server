@@ -25,6 +25,10 @@ test-hardware:
 lint:
     cargo clippy --workspace --all-targets -- -D warnings
     cargo clippy -p server -p psu-core --all-targets --features simulation -- -D warnings
+    # The domain crates on their own, without the features the server turns on.
+    # Workspace builds unify features, so this is the only place their default
+    # configuration is actually checked.
+    cargo clippy -p psu-core -p dp832 --all-targets -- -D warnings
 
 fmt:
     cargo fmt --all

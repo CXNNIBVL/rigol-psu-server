@@ -49,18 +49,29 @@ async fn method_not_allowed() -> ApiError {
 
 // -- presets ---------------------------------------------------------------
 
-async fn list_presets(State(s): State<AppState>) -> Result<Json<Vec<ChannelPreset>>, ApiError> {
+#[utoipa::path(get, path = "/api/presets", tag = "presets",
+    responses((status = 200, body = Vec<ChannelPreset>)))]
+pub async fn list_presets(State(s): State<AppState>) -> Result<Json<Vec<ChannelPreset>>, ApiError> {
     Ok(Json(s.store.presets().map_err(store_error)?))
 }
 
-async fn get_preset(
+#[utoipa::path(get, path = "/api/presets/{id}", tag = "presets",
+    params(("id" = i64, Path,)),
+    responses((status = 200, body = ChannelPreset), (status = 404, body = ApiError)))]
+pub async fn get_preset(
     State(s): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ChannelPreset>, ApiError> {
     Ok(Json(s.store.preset(id).map_err(store_error)?))
 }
 
-async fn create_preset(
+#[utoipa::path(post, path = "/api/presets", tag = "presets",
+    request_body = NewChannelPreset,
+    responses(
+        (status = 201, body = ChannelPreset),
+        (status = 409, description = "A preset of that name exists", body = ApiError),
+        (status = 422, description = "A value is negative or not a number", body = ApiError)))]
+pub async fn create_preset(
     State(s): State<AppState>,
     Json(body): Json<NewChannelPreset>,
 ) -> Result<(StatusCode, Json<ChannelPreset>), ApiError> {
@@ -68,7 +79,10 @@ async fn create_preset(
     Ok((StatusCode::CREATED, Json(preset)))
 }
 
-async fn update_preset(
+#[utoipa::path(put, path = "/api/presets/{id}", tag = "presets",
+    params(("id" = i64, Path,)), request_body = NewChannelPreset,
+    responses((status = 200, body = ChannelPreset), (status = 404, body = ApiError)))]
+pub async fn update_preset(
     State(s): State<AppState>,
     Path(id): Path<i64>,
     Json(body): Json<NewChannelPreset>,
@@ -76,7 +90,14 @@ async fn update_preset(
     Ok(Json(s.store.update_preset(id, &body).map_err(store_error)?))
 }
 
-async fn delete_preset(
+#[utoipa::path(delete, path = "/api/presets/{id}", tag = "presets",
+    params(("id" = i64, Path,)),
+    responses(
+        (status = 204, description = "Deleted"),
+        (status = 404, body = ApiError),
+        (status = 409, description = "A profile depends on this preset. Deleting is refused \
+            rather than cascaded, which would silently gut the profile.", body = ApiError)))]
+pub async fn delete_preset(
     State(s): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
@@ -86,18 +107,32 @@ async fn delete_preset(
 
 // -- profiles --------------------------------------------------------------
 
-async fn list_profiles(State(s): State<AppState>) -> Result<Json<Vec<DeviceProfile>>, ApiError> {
+#[utoipa::path(get, path = "/api/profiles", tag = "profiles",
+    responses((status = 200, body = Vec<DeviceProfile>)))]
+pub async fn list_profiles(
+    State(s): State<AppState>,
+) -> Result<Json<Vec<DeviceProfile>>, ApiError> {
     Ok(Json(s.store.profiles().map_err(store_error)?))
 }
 
-async fn get_profile(
+#[utoipa::path(get, path = "/api/profiles/{id}", tag = "profiles",
+    params(("id" = i64, Path,)),
+    responses((status = 200, body = DeviceProfile), (status = 404, body = ApiError)))]
+pub async fn get_profile(
     State(s): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<DeviceProfile>, ApiError> {
     Ok(Json(s.store.profile(id).map_err(store_error)?))
 }
 
-async fn create_profile(
+#[utoipa::path(post, path = "/api/profiles", tag = "profiles",
+    request_body = NewDeviceProfile,
+    responses(
+        (status = 201, body = DeviceProfile),
+        (status = 409, description = "A profile of that name exists", body = ApiError),
+        (status = 422, description = "A binding names an unknown preset, or binds one \
+            channel twice", body = ApiError)))]
+pub async fn create_profile(
     State(s): State<AppState>,
     Json(body): Json<NewDeviceProfile>,
 ) -> Result<(StatusCode, Json<DeviceProfile>), ApiError> {
@@ -105,7 +140,11 @@ async fn create_profile(
     Ok((StatusCode::CREATED, Json(profile)))
 }
 
-async fn update_profile(
+#[utoipa::path(put, path = "/api/profiles/{id}", tag = "profiles",
+    params(("id" = i64, Path,)), request_body = NewDeviceProfile,
+    responses((status = 200, description = "Replaced wholesale, bindings included",
+        body = DeviceProfile), (status = 404, body = ApiError)))]
+pub async fn update_profile(
     State(s): State<AppState>,
     Path(id): Path<i64>,
     Json(body): Json<NewDeviceProfile>,
@@ -115,7 +154,10 @@ async fn update_profile(
     ))
 }
 
-async fn delete_profile(
+#[utoipa::path(delete, path = "/api/profiles/{id}", tag = "profiles",
+    params(("id" = i64, Path,)),
+    responses((status = 204, description = "Deleted"), (status = 404, body = ApiError)))]
+pub async fn delete_profile(
     State(s): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
@@ -123,7 +165,7 @@ async fn delete_profile(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, utoipa::IntoParams)]
 pub struct ApplyQuery {
     /// Overrides the "every target channel must be off" rule, and nothing else.
     #[serde(default)]
@@ -131,7 +173,24 @@ pub struct ApplyQuery {
 }
 
 /// Stages setpoints. Never energises.
-async fn apply_profile(
+#[utoipa::path(post, path = "/api/profiles/{id}/apply", tag = "profiles",
+    params(
+        ("id" = i64, Path,),
+        ("force" = Option<bool>, Query, description = "Overrides the \"every target channel \
+            must be off\" rule, and nothing else. It does not override a channel limit, a \
+            quarantine, or the refusal to apply a profile spanning an unreachable supply.")),
+    responses(
+        (status = 200, description = "Setpoints staged. Nothing has been energised.",
+            body = DeviceProfile),
+        (status = 404, body = ApiError),
+        (status = 409, description = "A target channel is live, frozen, or of unknown state, \
+            or a bound supply is quarantined. `forceable` says whether force would help.",
+            body = ApiError),
+        (status = 422, description = "A preset exceeds the channel's limit, or the profile \
+            is empty", body = ApiError),
+        (status = 503, description = "A bound supply is not answering, so the profile cannot \
+            be applied in full", body = ApiError)))]
+pub async fn apply_profile(
     State(s): State<AppState>,
     Path(id): Path<i64>,
     Query(query): Query<ApplyQuery>,
@@ -143,7 +202,14 @@ async fn apply_profile(
 }
 
 /// The one endpoint that puts energy into a device.
-async fn power_on_profile(
+#[utoipa::path(post, path = "/api/profiles/{id}/power-on", tag = "profiles",
+    params(("id" = i64, Path,)),
+    responses(
+        (status = 200, description = "Rails energised in sequence, honouring each dwell",
+            body = DeviceProfile),
+        (status = 409, body = ApiError),
+        (status = 503, body = ApiError)))]
+pub async fn power_on_profile(
     State(s): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<DeviceProfile>, ApiError> {
@@ -153,7 +219,11 @@ async fn power_on_profile(
     Ok(Json(profile))
 }
 
-async fn power_off_profile(
+#[utoipa::path(post, path = "/api/profiles/{id}/power-off", tag = "profiles",
+    params(("id" = i64, Path,)),
+    responses((status = 200, description = "Every rail switched off, in reverse sequence",
+        body = DeviceProfile)))]
+pub async fn power_off_profile(
     State(s): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<DeviceProfile>, ApiError> {

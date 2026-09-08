@@ -5,6 +5,7 @@
 
 pub mod assets;
 pub mod error;
+pub mod openapi;
 pub mod profiles;
 pub mod routes;
 

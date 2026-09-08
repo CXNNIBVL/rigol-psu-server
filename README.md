@@ -13,7 +13,7 @@ alternatives that were rejected, is in **[docs/PLAN.md](docs/PLAN.md)**.
 | M1 — `dp832` driver crate (SCPI, USBTMC, simulator) | done |
 | M2 — server skeleton (config, actors, polling, API, WebSocket) | done |
 | M3 — Svelte dashboard | done |
-| M4 — safety hardening | landed with M2 and M5; OpenAPI spec outstanding |
+| M4 — safety hardening | done |
 | M5 — presets and profiles (SQLite) | done |
 | M6 — deployment on the lab PC | files in `deploy/`, not yet installed |
 
@@ -39,6 +39,9 @@ not editable from the UI. The server refuses to start without them.
 
 Presets and profiles are stored in SQLite at `--database`
 (default `/var/lib/rigol-psu/data.db`). Simulated runs keep theirs in memory.
+
+The API describes itself at `GET /api/openapi.json` (OpenAPI 3.1), generated
+from the same Rust types the handlers return.
 
 ## Applying a profile
 

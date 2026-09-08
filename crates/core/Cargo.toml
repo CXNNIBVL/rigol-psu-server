@@ -11,6 +11,8 @@ default = []
 # Exposes the simulated-supply backend so the server can run without hardware.
 # Kept off by default so the release binary cannot fabricate instrument state.
 simulation = []
+# Propagates schema derives down to the driver crate's value types.
+openapi = ["dep:utoipa", "dp832/openapi"]
 
 [dev-dependencies]
 tempfile.workspace = true
@@ -19,6 +21,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "ti
 [dependencies]
 dp832 = { workspace = true, features = ["serde"] }
 rusqlite.workspace = true
+utoipa = { workspace = true, optional = true }
 serde.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

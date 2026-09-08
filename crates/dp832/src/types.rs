@@ -3,6 +3,8 @@ use std::str::FromStr;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "openapi")]
+use utoipa::ToSchema;
 
 /// One of the DP832's three output channels.
 ///
@@ -11,6 +13,7 @@ use serde::{Deserialize, Serialize};
 /// server's configuration, deliberately outside this crate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "UPPERCASE"))]
 pub enum ChannelId {
     Ch1,
@@ -53,6 +56,7 @@ impl FromStr for ChannelId {
 /// What the instrument reports itself to be, from `*IDN?`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct Identity {
     pub vendor: String,
     pub model: String,
@@ -68,6 +72,7 @@ pub struct Identity {
 /// coherent with one another.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct Measurement {
     pub volt: f64,
     pub curr: f64,
@@ -77,6 +82,7 @@ pub struct Measurement {
 /// What a channel has been *told* to do, as distinct from what it is doing.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct Setpoint {
     pub volt: f64,
     pub curr_limit: f64,
@@ -88,6 +94,7 @@ pub struct Setpoint {
 /// substitute for — the server's operator-configured clamps.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct Protection {
     pub ovp_level: f64,
     pub ovp_enabled: bool,
@@ -98,6 +105,7 @@ pub struct Protection {
 /// The full readback of a channel: what it was told, and whether it is live.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "openapi", derive(ToSchema))]
 pub struct ChannelState {
     pub setpoint: Setpoint,
     pub protection: Protection,

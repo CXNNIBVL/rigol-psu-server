@@ -19,6 +19,7 @@ pub struct Clamp {
 /// Which quantity broke the limit, and by how much.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "quantity")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum ClampViolation {
     Voltage { requested: f64, limit: f64 },
     Current { requested: f64, limit: f64 },

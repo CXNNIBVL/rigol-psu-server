@@ -9,9 +9,13 @@ rust-version.workspace = true
 [features]
 default = []
 serde = ["dep:serde"]
+# Schema derives for the API layer. Optional so the driver crate carries no
+# web dependency unless something upstream asks for one.
+openapi = ["serde", "dep:utoipa"]
 
 [dependencies]
 serde = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing.workspace = true
 

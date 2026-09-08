@@ -9,7 +9,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use dp832::{ChannelId, Protection, Setpoint};
-use psu_core::{Supervisor, SystemState};
+use psu_core::{DeviceView, Supervisor, SystemState};
 use serde::{Deserialize, Serialize};
 
 use crate::error::ApiError;
@@ -39,6 +39,7 @@ pub fn router(state: AppState) -> Router {
             post(post_output),
         )
         .route("/stream", get(stream))
+        .route("/openapi.json", get(openapi_json))
         .merge(crate::profiles::routes());
 
     #[cfg(feature = "simulation")]
@@ -52,21 +53,29 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-async fn get_state(State(state): State<AppState>) -> Json<SystemState> {
+#[utoipa::path(
+    get, path = "/api/state", tag = "bench",
+    responses((status = 200, description = "Everything the server knows right now. \
+        Readings are null when a supply is not answering — that means unknown, never zero.",
+        body = SystemState)))]
+pub async fn get_state(State(state): State<AppState>) -> Json<SystemState> {
     Json(state.supervisor.snapshot())
 }
 
-async fn get_devices(State(state): State<AppState>) -> Json<Vec<psu_core::DeviceView>> {
+#[utoipa::path(
+    get, path = "/api/devices", tag = "bench",
+    responses((status = 200, body = Vec<DeviceView>)))]
+pub async fn get_devices(State(state): State<AppState>) -> Json<Vec<DeviceView>> {
     Json(state.supervisor.snapshot().devices)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SetpointBody {
     pub volt: f64,
     pub curr_limit: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ProtectionBody {
     pub ovp_level: f64,
     pub ovp_enabled: bool,
@@ -74,17 +83,28 @@ pub struct ProtectionBody {
     pub ocp_enabled: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct OutputBody {
     pub on: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct Accepted {
     pub ok: bool,
 }
 
-async fn put_setpoint(
+#[utoipa::path(
+    put, path = "/api/devices/{slot}/channels/{channel}/setpoint", tag = "bench",
+    params(("slot" = String, Path,), ("channel" = String, Path, description = "CH1, CH2 or CH3")),
+    request_body = SetpointBody,
+    responses(
+        (status = 200, body = Accepted),
+        (status = 404, description = "No such supply or channel", body = ApiError),
+        (status = 409, description = "The channel is frozen after a limit violation", body = ApiError),
+        (status = 422, description = "Exceeds the operator-configured limit for this channel",
+            body = ApiError),
+        (status = 503, description = "The supply is not answering", body = ApiError)))]
+pub async fn put_setpoint(
     State(state): State<AppState>,
     Path((slot, channel)): Path<(String, String)>,
     Json(body): Json<SetpointBody>,
@@ -109,7 +129,14 @@ async fn put_setpoint(
     Ok(Json(Accepted { ok: true }))
 }
 
-async fn put_protection(
+#[utoipa::path(
+    put, path = "/api/devices/{slot}/channels/{channel}/protection", tag = "bench",
+    params(("slot" = String, Path,), ("channel" = String, Path,)),
+    request_body = ProtectionBody,
+    responses(
+        (status = 200, body = Accepted),
+        (status = 422, description = "A threshold exceeds the channel's limit", body = ApiError)))]
+pub async fn put_protection(
     State(state): State<AppState>,
     Path((slot, channel)): Path<(String, String)>,
     Json(body): Json<ProtectionBody>,
@@ -136,7 +163,16 @@ async fn put_protection(
     Ok(Json(Accepted { ok: true }))
 }
 
-async fn post_output(
+#[utoipa::path(
+    post, path = "/api/devices/{slot}/channels/{channel}/output", tag = "bench",
+    params(("slot" = String, Path,), ("channel" = String, Path,)),
+    request_body = OutputBody,
+    responses(
+        (status = 200, body = Accepted),
+        (status = 409, description = "Switching on is refused — the supply is quarantined, \
+            or the channel is frozen. Switching off is never refused.", body = ApiError),
+        (status = 503, description = "The supply is not answering", body = ApiError)))]
+pub async fn post_output(
     State(state): State<AppState>,
     Path((slot, channel)): Path<(String, String)>,
     Json(body): Json<OutputBody>,
@@ -223,6 +259,12 @@ fn validate_finite(value: f64, field: &str) -> Result<(), ApiError> {
             format!("`{field}` must be a finite number"),
         ))
     }
+}
+
+/// The generated OpenAPI description of this API.
+async fn openapi_json() -> impl IntoResponse {
+    use utoipa::OpenApi;
+    Json(crate::openapi::ApiDoc::openapi())
 }
 
 pub async fn fallback() -> impl IntoResponse {

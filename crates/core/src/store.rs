@@ -54,6 +54,7 @@ impl StoreError {
 
 /// A named bundle of settings for one channel.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ChannelPreset {
     pub id: i64,
     pub name: String,
@@ -87,6 +88,7 @@ impl ChannelPreset {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct NewChannelPreset {
     pub name: String,
     pub volt: f64,
@@ -101,6 +103,7 @@ pub struct NewChannelPreset {
 
 /// One rail of a profile: which preset goes to which physical channel, and when.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ProfileBinding {
     pub id: i64,
     pub slot: String,
@@ -111,6 +114,7 @@ pub struct ProfileBinding {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct NewProfileBinding {
     pub slot: String,
     pub channel: String,
@@ -123,6 +127,7 @@ pub struct NewProfileBinding {
 
 /// A named device, described as the set of rails it needs.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct DeviceProfile {
     pub id: i64,
     pub name: String,
@@ -132,6 +137,7 @@ pub struct DeviceProfile {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct NewDeviceProfile {
     pub name: String,
     #[serde(default)]

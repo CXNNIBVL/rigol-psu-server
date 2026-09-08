@@ -15,6 +15,7 @@ use crate::clamp::{Clamp, ClampViolation};
 /// specific rather than printing a string it cannot interpret.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum OfflineCode {
     /// The supply did not answer in time.
     Timeout,
@@ -33,6 +34,7 @@ pub enum OfflineCode {
 /// configured, so it must not be allowed to energise anything.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum DeviceStatus {
     Online,
     Offline {
@@ -64,6 +66,7 @@ impl DeviceStatus {
 /// The operator-configured limits, echoed so the UI can show what it is bounded
 /// by without a second request.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Limits {
     pub max_volt: f64,
     pub max_curr: f64,
@@ -84,6 +87,7 @@ impl From<Clamp> for Limits {
 /// supply is not answering. That is the whole point: the UI must render
 /// "Unknown", not a plausible-looking zero.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ChannelView {
     pub id: ChannelId,
     pub limits: Limits,
@@ -129,6 +133,7 @@ impl ChannelView {
 
 /// One supply, as published.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct DeviceView {
     pub slot: String,
     pub label: String,
@@ -157,6 +162,7 @@ impl DeviceView {
 /// is a couple of kilobytes, which buys stateless reconnection and removes an
 /// entire class of client-desync bug.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct SystemState {
     /// Increments on every published snapshot, so a client can tell a stale
     /// frame from a fresh one.

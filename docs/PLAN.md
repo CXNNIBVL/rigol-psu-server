@@ -83,7 +83,7 @@ of one PSU is 3 queries, not 9.
 |---|---|
 | Server language | Rust |
 | HTTP framework | `axum` + `tokio` |
-| Command API | REST + JSON, OpenAPI spec generated via `utoipa` |
+| Command API | REST + JSON; OpenAPI 3.1 generated via `utoipa` from the domain types |
 | Live telemetry | WebSocket, full state snapshots at 2 Hz |
 | Frontend | Svelte SPA (Vite), static build |
 | Component library | Skeleton UI v5 (`@skeletonlabs/skeleton` + `skeleton-svelte`) on Tailwind 4 |
@@ -644,9 +644,18 @@ quietly break.
    reports `forceable` on a refusal so the UI offers the override only where it
    could actually apply.
 
-   Still outstanding from M4: the **OpenAPI spec**. Generating it from the
-   response types means adding `utoipa` to `psu-core`, which puts a web
-   dependency in the domain crate — worth deciding deliberately rather than as a
-   side effect.
+   The **OpenAPI spec** outstanding from M4 is now done, served at
+   `GET /api/openapi.json`. The schema derives live in `psu-core` and `dp832`
+   behind an **optional `openapi` feature**: no types are mirrored in the server
+   crate, so the document cannot drift from what the handlers return, and the
+   domain crates still carry no web dependency for any consumer that does not
+   ask for one. The alternative — restating every response type in the server —
+   would have meant two definitions of each and a standing invitation for them
+   to disagree.
+
+   One property is worth guarding explicitly, and there is a test for it:
+   `measurement`, `setpoint` and `output_on` must be documented as nullable. A
+   schema claiming they are always present would lead a generated client to
+   default them to zero, which is precisely the lie §7.3 exists to prevent.
 6. **M6 — Deployment.** udev rule, systemd unit, front panel lock lifecycle,
    cross-compile and install on the target. Resolve the §11 risks on real hardware.
