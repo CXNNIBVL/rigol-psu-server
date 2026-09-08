@@ -102,4 +102,25 @@ describe('ChannelCard', () => {
     expect(card.querySelector('.badge')).toHaveTextContent('Unknown');
     expect(card.className).not.toContain('opacity');
   });
+
+  it('advertises the output state on the control, which is what the accent hooks onto', () => {
+    const { unmount } = render(ChannelCard, {
+      device: device(),
+      channel: channel({ output_on: true }),
+    });
+    expect(document.querySelector('[data-scope="radio-group"]')).toHaveAttribute(
+      'data-output',
+      'on',
+    );
+    unmount();
+
+    render(ChannelCard, {
+      device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
+      channel: unknownChannel(),
+    });
+    // No value at all when the rail's state is unknown, so nothing is accented.
+    expect(document.querySelector('[data-scope="radio-group"]')).not.toHaveAttribute(
+      'data-output',
+    );
+  });
 });

@@ -128,6 +128,8 @@
     </label>
   </div>
 
+  <hr class="hr" />
+
   <div class="space-y-2">
     <div class="flex items-center justify-between">
       <h4 class="font-semibold">Rails</h4>

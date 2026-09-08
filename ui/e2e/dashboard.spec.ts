@@ -394,4 +394,48 @@ test.describe('navigation rail', () => {
     expect(shapes).toHaveLength(4);
     expect(new Set(shapes).size).toBe(4);
   });
+
+  test('accents the selected section, and not only with colour', async ({ page }) => {
+    await page.goto('/');
+    const icon = (section: string) =>
+      page.getByTestId(`nav-${section}`).locator('svg');
+
+    const selected = await icon('bench').evaluate((el) => getComputedStyle(el).color);
+    const unselected = await icon('presets').evaluate((el) => getComputedStyle(el).color);
+    expect(selected).not.toBe(unselected);
+
+    // Colour is never the only signal: the selected item also carries
+    // aria-current and a heavier label.
+    await expect(page.getByTestId('nav-bench')).toHaveAttribute('aria-current', 'page');
+    const weight = await page
+      .getByTestId('nav-bench')
+      .evaluate((el) => getComputedStyle(el).fontWeight);
+    expect(Number(weight)).toBeGreaterThan(500);
+
+    // And it follows the selection.
+    await page.getByTestId('nav-presets').click();
+    const nowSelected = await icon('presets').evaluate((el) => getComputedStyle(el).color);
+    expect(nowSelected).toBe(selected);
+  });
+});
+
+test('a live rail and the selected section share one accent', async ({ page }) => {
+  // One accent meaning "active", rather than a second highlight colour that
+  // means almost but not quite the same thing.
+  await page.goto('/');
+  const card = page.getByTestId('channel-psu2-CH1');
+  await segment(card, 'On').click();
+  await expect(card).toHaveAttribute('data-state', 'live');
+
+  const indicator = await card
+    .locator('[data-part="indicator"]')
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  const navIcon = await page
+    .getByTestId('nav-bench')
+    .locator('svg')
+    .evaluate((el) => getComputedStyle(el).color);
+
+  expect(indicator).toBe(navIcon);
+
+  await segment(card, 'Off').click();
 });

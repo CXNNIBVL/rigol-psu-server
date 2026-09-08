@@ -88,15 +88,19 @@
     {/if}
   </header>
 
-  <dl class="reading grid grid-cols-3 gap-2 text-center">
+  <!-- Vertical rules rather than spacing alone: three numbers in a row are
+       easier to read as three quantities when they are visibly separated. -->
+  <dl class="reading grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center text-center">
     <div>
       <dt class="text-xs opacity-60">Voltage</dt>
       <dd class="text-lg" data-testid="volt">{volt}</dd>
     </div>
+    <div class="vr h-8"></div>
     <div>
       <dt class="text-xs opacity-60">Current</dt>
       <dd class="text-lg" data-testid="curr">{curr}</dd>
     </div>
+    <div class="vr h-8"></div>
     <div>
       <dt class="text-xs opacity-60">Power</dt>
       <dd class="text-lg" data-testid="power">{power}</dd>
@@ -123,6 +127,8 @@
     the limit, and it is the same message however the value got there — so the
     server stays the single authority and the user always gets the useful text.
   -->
+  <hr class="hr" />
+
   <form class="flex gap-2" onsubmit={apply} novalidate>
     <input
       class="input"
@@ -157,6 +163,7 @@
     disabled={busy || device.state === 'offline'}
     aria-label="{channel.id} output"
     class="w-full"
+    data-output={outputValue || undefined}
   >
     <SegmentedControl.Control class="w-full">
       <SegmentedControl.Indicator />

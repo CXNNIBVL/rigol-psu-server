@@ -25,3 +25,38 @@
 .reading {
   font-variant-numeric: tabular-nums;
 }
+
+/*
+  One accent for "this is active".
+
+  Green already means a live rail, and reusing it for the selected section keeps
+  the palette to a single idea — accent for on, everything else neutral — rather
+  than accumulating a second highlight colour that means something almost but
+  not quite the same.
+
+  Colour is never the only signal. The selected rail item also carries a tonal
+  background, a heavier label and `aria-current`; the segmented control still
+  moves its indicator. Someone who cannot separate the hues loses nothing.
+*/
+
+/* Skeleton's navigation ships no selected state, so this defines one. */
+[data-scope='navigation'][data-part='trigger'][aria-current='page'] {
+	@apply preset-tonal;
+	font-weight: 600;
+
+	& svg {
+		color: var(--color-success-500);
+	}
+}
+
+/* A channel that is on. The indicator is otherwise neutral, which makes "on"
+   and "off" look equally unremarkable — on a power supply they are not. */
+[data-scope='radio-group'][data-output='on'] {
+	& [data-part='indicator'] {
+		background: var(--color-success-500);
+	}
+
+	& [data-part='item-text'][data-state='checked'] {
+		color: var(--color-success-contrast-500);
+	}
+}

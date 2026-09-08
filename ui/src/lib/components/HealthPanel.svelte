@@ -39,6 +39,7 @@
         <header class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-3">
             <h3 class="h4">{row.device.label}</h3>
+            <div class="vr h-6"></div>
             <StatusBadge status={row.status} size="lg" />
             {#if row.device.front_panel_locked}
               <span class="badge preset-tonal-surface text-sm px-3 py-1">Panel locked</span>
@@ -46,6 +47,8 @@
           </div>
           <p class="text-xs opacity-60">{row.device.slot} · {row.device.device}</p>
         </header>
+
+        <hr class="hr" />
 
         <dl class="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
           <div class="flex gap-2">

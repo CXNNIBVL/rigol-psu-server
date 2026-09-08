@@ -53,6 +53,7 @@
   <Navigation layout="rail" class="shrink-0 sticky top-0 h-screen">
     <Navigation.Header>
       <span class="font-bold text-lg" title="PSU Bench">PSU</span>
+      <hr class="hr mt-2" />
     </Navigation.Header>
 
     <Navigation.Content>
@@ -85,7 +86,7 @@
   </Navigation>
 
   <main class="grow p-4 space-y-6 overflow-x-auto">
-    <header class="flex items-baseline justify-between gap-4">
+    <header class="flex items-baseline justify-between gap-4 pb-3 border-b border-surface-300-700">
       <h1 class="h2">PSU Bench</h1>
       {#if bench.connection !== 'open'}
         <!-- Losing the connection means losing knowledge, so it is stated
@@ -104,7 +105,10 @@
       <HealthPanel {devices} />
     {:else if bench.snapshot}
       <div class="space-y-8">
-        {#each bench.snapshot.devices as device (device.slot)}
+        {#each bench.snapshot.devices as device, index (device.slot)}
+          {#if index > 0}
+            <hr class="hr" />
+          {/if}
           <DeviceCard {device} />
         {/each}
       </div>

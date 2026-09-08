@@ -152,6 +152,8 @@
         same preset can auto-start on one device and stay staged on another.
       </p>
 
+      <hr class="hr" />
+
       <div class="flex gap-2">
         <button class="btn preset-filled-primary-500" type="submit" disabled={busy || !form.name}>
           {editing ? 'Save' : 'Create'}

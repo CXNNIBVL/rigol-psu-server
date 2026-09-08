@@ -558,6 +558,12 @@ drift:
   clamp-violating channels each carry a text label as well as a colour. A rail
   whose state is unknown must not be distinguishable from a healthy one by hue
   alone — that is precisely the case where a misread is expensive.
+- **One accent, meaning "active".** The green that marks a live rail is the same
+  green that marks the selected section in the rail and the `On` segment of a
+  channel's control. A second highlight colour meaning almost-but-not-quite the
+  same thing is how a palette stops meaning anything. Everything else stays
+  neutral, which is what lets the accent read as information rather than
+  decoration.
 - **On and off are shown, not said.** A live channel gets a coloured border and
   full opacity; an off one is dimmed. Both signals are non-hue — a border is
   either present or not, and dimming is a lightness change — so the distinction
@@ -565,6 +571,12 @@ drift:
   from this and keep their labels: nobody should have to infer "we do not know
   what this rail is doing" from styling. A channel needing attention is also
   never dimmed, so it cannot recede into the background.
+- **Dividers separate kinds of thing, not every thing.** A rule sits between a
+  channel's readings and its controls, between one supply and the next, and
+  between a profile's identity and its rails — boundaries where the content
+  changes character. Vertical rules separate the three readings, which are three
+  quantities rather than one sentence. They are not used to subdivide lists,
+  where spacing already does the work.
 
 ---
 

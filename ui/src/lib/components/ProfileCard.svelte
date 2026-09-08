@@ -75,6 +75,8 @@
     {/each}
   </ol>
 
+  <hr class="hr" />
+
   <div class="flex flex-wrap gap-2">
     <!--
       Three separate buttons, not one. Applying stages setpoints and cannot
