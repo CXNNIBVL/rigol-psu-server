@@ -341,27 +341,36 @@ test.describe('authoring', () => {
     await expect(row.getByRole('button', { name: `Delete in use ${stamp}` })).toBeDisabled();
   });
 
-  test('a supply\'s identity is available from its own panel', async ({ page }) => {
-    // What the Health section used to exist for. Its only unique content was
-    // the two serials, which now sit on the supply they describe.
+  test('a supply\'s metadata opens in place', async ({ page }) => {
+    // What the Health section used to exist for. As a floating panel this was
+    // clipped by the table's scroll container and could not be read at all.
     await page.goto('/');
     const identity = page.getByTestId('identity-psu1');
-    await expect(identity).toBeVisible();
-    // The <summary>, not the device path inside the panel it reveals.
-    await identity.locator('summary').click();
-    await expect(identity).toContainText('/dev/rigol-psu1');
-    await expect(identity).toContainText('Configured serial');
-    await expect(identity).toContainText('Reported serial');
+    const details = identity.locator('dl');
+    // zag keeps the content mounted and hides it, so this is a visibility
+    // question rather than a text one.
+    await expect(details).toBeHidden();
+
+    await identity.getByRole('button', { name: 'Metadata' }).click();
+    await expect(details).toBeVisible();
+    await expect(details).toContainText('/dev/rigol-psu1');
+    await expect(details).toContainText('SIM-0001');
+
+    // Fully on screen, not cut off by an overflow container.
+    const box = (await details.boundingBox())!;
+    const width = page.viewportSize()!.width;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
   });
 
-  test('the bench answers its own top-line question', async ({ page }) => {
+  test('the bench header speaks only when something needs attention', async ({
+    page,
+  }) => {
+    // A live-rail count and a running total lived here; neither prompted any
+    // action, and both restated the table underneath.
     await page.goto('/');
-    const header = page.locator('main header').first();
-    await expect(header).toContainText('of 9 rails live');
-    await expect(header).toContainText('W total');
-
-    // And says when something needs looking at, from the bench itself.
     await expect(page.getByTestId('bench-attention')).toHaveCount(0);
+
     await injectFault(page, 'psu2', 'disconnected');
     await expect(page.getByTestId('bench-attention')).toHaveText(
       '1 supply needs attention',

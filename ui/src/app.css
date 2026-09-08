@@ -60,3 +60,21 @@
 		color: var(--color-success-contrast-500);
 	}
 }
+
+/* Skeleton styles the collapsible's root and trigger but not its indicator, so
+   the chevron sat still whether open or closed — a disclosure arrow that never
+   moves is a broken affordance rather than a decorative one. */
+[data-scope='collapsible'][data-part='indicator'] {
+	display: inline-flex;
+	transition: rotate 150ms;
+
+	&[data-state='open'] {
+		rotate: 90deg;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-scope='collapsible'][data-part='indicator'] {
+		transition: none;
+	}
+}

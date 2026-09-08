@@ -540,14 +540,21 @@ hold two strings, and every visit to it meant leaving the thing it described.
 
 What replaced it:
 
-- **Identity is a disclosure on the supply itself.** Slot, device node and both
-  serials, closed by default — reference facts needed rarely and needed
-  precisely when something is wrong. The quarantine banner still names both
-  serials inline, which is the case that actually matters.
-- **The bench answers its own top-line question.** Rails live, total draw, and
-  anything needing attention, in the page header. This is the summary §3 asked
-  for and never got; it also gives that header something to say, where it
-  previously repeated the rail's own wordmark.
+- **Metadata is a collapsible on the supply itself.** Slot, device node and
+  serial, closed by default — reference facts needed rarely and needed precisely
+  when something is wrong. The configured serial appears only when it disagrees
+  with the reported one; printing both when they match says nothing. The
+  quarantine banner still names both inline, which is the case that matters.
+
+  Built first as an absolutely positioned panel, which the table's own
+  horizontal scroll container clipped — it could not be read at all. In flow
+  now, expanding the panel rather than floating over it.
+- **The bench header speaks only when something needs attention.** It first
+  carried a live-rail count and a running total as well. Neither prompted any
+  action — the live rails are already marked in the table and the draw per
+  channel is a column of its own — so both were headline space spent restating
+  what was visible underneath. Removed; the header now appears only when there
+  is a supply to look at or the connection is down.
 - **The attention count moved to Bench**, which is where the supply in question
   lives.
 

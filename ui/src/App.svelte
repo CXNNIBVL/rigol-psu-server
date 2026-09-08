@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { Navigation } from '@skeletonlabs/skeleton-svelte';
   import { Bench } from './lib/bench.svelte';
-  import { summarise } from './lib/bench-summary';
+  import { countNeedingAttention } from './lib/bench-summary';
   import BenchView from './lib/components/BenchView.svelte';
   import ProfilesPanel from './lib/components/ProfilesPanel.svelte';
   import PresetsPanel from './lib/components/PresetsPanel.svelte';
@@ -24,7 +24,7 @@
   // Carried on Bench, which is where the supply in question lives. Health used
   // to hold this, but its only unique content was two serial numbers — now a
   // disclosure on the supply itself.
-  const needAttention = $derived(summarise(devices).needAttention);
+  const needAttention = $derived(countNeedingAttention(devices));
 
   // `onMount` rather than `$effect`: the connection must be opened exactly once
   // for the life of the component. An effect would re-run if anything it

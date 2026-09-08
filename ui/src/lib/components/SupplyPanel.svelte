@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DeviceView } from '../types';
+  import { Collapsible } from '@skeletonlabs/skeleton-svelte';
   import { deviceStatus, TONAL } from '../format';
   import ChannelRow from './ChannelRow.svelte';
   import StatusBadge from './StatusBadge.svelte';
@@ -7,10 +8,6 @@
   let { device }: { device: DeviceView } = $props();
 
   const status = $derived(deviceStatus(device));
-  const live = $derived(device.channels.filter((c) => c.output_on === true).length);
-  const draw = $derived(
-    device.channels.reduce((total, c) => total + (c.measurement?.power ?? 0), 0),
-  );
 </script>
 
 <!--
@@ -37,49 +34,48 @@
       {/if}
     </div>
 
-    <!-- One shape whatever the state: the same two facts in the same place,
-         rather than three different strings depending on what is happening. -->
-    <div class="flex items-center gap-4">
-      {#if device.state !== 'offline'}
-        <p class="reading text-sm tabular-nums">
-          <span class="font-semibold">{live}</span>
-          <span class="opacity-70">of {device.channels.length} rails live</span>
-        </p>
-        <div class="vr h-4"></div>
-        <p class="reading text-sm tabular-nums">
-          <span class="font-semibold">{draw.toFixed(2)}</span>
-          <span class="opacity-70">W</span>
-        </p>
-        <div class="vr h-4"></div>
-      {/if}
-
-      <!--
-        Identity, on demand. Slot, device node and the two serials are reference
-        facts: needed rarely, and needed precisely when something is wrong. They
-        had a whole section to themselves and duplicated everything around them.
-      -->
-      <details class="text-xs" data-testid="identity-{device.slot}">
-        <summary class="cursor-pointer opacity-60 hover:opacity-100 select-none">
-          {device.slot}
-        </summary>
-        <dl class="absolute z-10 mt-1 card preset-outlined-surface-200-800 p-3 space-y-1 bg-surface-100-900">
-          <div class="flex gap-3">
-            <dt class="opacity-60 w-32">Device node</dt>
-            <dd class="reading">{device.device}</dd>
-          </div>
-          <div class="flex gap-3">
-            <dt class="opacity-60 w-32">Configured serial</dt>
-            <dd class="reading">{device.expected_serial}</dd>
-          </div>
-          <div class="flex gap-3">
-            <dt class="opacity-60 w-32">Reported serial</dt>
-            <!-- Unknown, not blank: we have not heard from the instrument. -->
-            <dd class="reading">{device.reported_serial ?? 'Unknown'}</dd>
-          </div>
-        </dl>
-      </details>
-    </div>
   </header>
+
+  <!--
+    Metadata: the device node and the two serials. In flow rather than floating
+    — as an absolutely positioned panel it was clipped by the table's own
+    horizontal scroll container and could not be read at all.
+  -->
+  <Collapsible data-testid="identity-{device.slot}">
+    <Collapsible.Trigger class="btn btn-sm preset-tonal self-start">
+      <Collapsible.Indicator>
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </Collapsible.Indicator>
+      Metadata
+    </Collapsible.Trigger>
+    <Collapsible.Content class="w-full">
+      <dl class="text-xs grid gap-1 sm:grid-cols-3 rounded border border-surface-200-800 p-3">
+        <div>
+          <dt class="opacity-60">Slot</dt>
+          <dd class="reading">{device.slot}</dd>
+        </div>
+        <div>
+          <dt class="opacity-60">Device node</dt>
+          <dd class="reading">{device.device}</dd>
+        </div>
+        <div>
+          <dt class="opacity-60">Serial</dt>
+          <dd class="reading">
+            {device.reported_serial ?? 'Unknown'}
+            {#if device.reported_serial && device.reported_serial !== device.expected_serial}
+              <!-- Only worth stating when the two disagree; when they match,
+                   printing both twice says nothing. -->
+              <span class="text-warning-500">
+                (configured as {device.expected_serial})
+              </span>
+            {/if}
+          </dd>
+        </div>
+      </dl>
+    </Collapsible.Content>
+  </Collapsible>
 
   {#if status.detail}
     <p class="{TONAL[status.tone]} p-3 rounded text-sm" role="status" data-testid="device-detail">
