@@ -6,7 +6,7 @@
 //! root-owned config file rather than the database precisely so that nothing
 //! reachable from the API can raise them.
 
-use dp832::{Protection, Setpoint};
+use dp832::Setpoint;
 use serde::Serialize;
 
 /// The maximum this channel may ever be asked to produce.
@@ -65,27 +65,20 @@ impl Clamp {
         Ok(())
     }
 
-    /// Protection thresholds are clamped too.
-    ///
-    /// An OVP trip point above the clamp is not dangerous by itself, but it
-    /// means the operator's intent and the instrument's configuration disagree,
-    /// and silently allowing it makes the clamp value misleading to anyone
-    /// reading the UI.
-    pub fn check_protection(&self, p: Protection) -> Result<(), ClampViolation> {
-        if p.ovp_enabled && p.ovp_level > self.max_volt {
-            return Err(ClampViolation::Voltage {
-                requested: p.ovp_level,
-                limit: self.max_volt,
-            });
-        }
-        if p.ocp_enabled && p.ocp_level > self.max_curr {
-            return Err(ClampViolation::Current {
-                requested: p.ocp_level,
-                limit: self.max_curr,
-            });
-        }
-        Ok(())
-    }
+    // Protection thresholds are deliberately *not* clamped.
+    //
+    // This limit governs what a channel may be asked to *output*. OVP and OCP
+    // are trip points: the instrument's own backstop, which by definition sits
+    // above the value being run. Clamping them to the same ceiling as the
+    // output made protection unavailable exactly where the limits are tightest
+    // — a channel limited to 5 V could not carry an OVP at 5.5 V, so the only
+    // way to configure it at all was to leave it off. That is strictly less
+    // safe than allowing a trip point above the ceiling, which cannot itself
+    // produce a volt of output.
+    //
+    // A trip point *below* the value being run is a real mistake, and it is
+    // caught where it can be judged against its own setpoint: see
+    // `validate_preset` in the store.
 }
 
 #[cfg(test)]
@@ -138,28 +131,17 @@ mod tests {
     }
 
     #[test]
-    fn ignores_protection_thresholds_that_are_disabled() {
-        let p = Protection {
-            ovp_level: 30.0,
-            ovp_enabled: false,
-            ocp_level: 3.0,
-            ocp_enabled: false,
-        };
-        assert!(CLAMP.check_protection(p).is_ok());
-    }
-
-    #[test]
-    fn rejects_an_enabled_ovp_above_the_clamp() {
-        let p = Protection {
-            ovp_level: 30.0,
-            ovp_enabled: true,
-            ocp_level: 1.0,
-            ocp_enabled: true,
-        };
-        assert!(matches!(
-            CLAMP.check_protection(p).unwrap_err(),
-            ClampViolation::Voltage { .. }
-        ));
+    fn a_protection_trip_point_may_sit_above_the_limit() {
+        // The limit governs output. A trip point above it is the instrument's
+        // backstop and cannot itself produce a volt; forbidding it left the
+        // tightest channels with no way to configure protection at all.
+        let sp = sp(5.0, 1.0);
+        assert!(Clamp {
+            max_volt: 5.0,
+            max_curr: 2.0
+        }
+        .check_setpoint(sp)
+        .is_ok());
     }
 
     #[test]

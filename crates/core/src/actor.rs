@@ -371,11 +371,8 @@ impl<T: Transport> Actor<T> {
                 protection,
                 reply,
             } => {
-                let result = self.guarded(channel, Intent::Configure, |actor, policy| {
-                    policy
-                        .clamp
-                        .check_protection(protection)
-                        .map_err(CommandError::ClampExceeded)?;
+                let result = self.guarded(channel, Intent::Configure, |actor, _policy| {
+                    // Trip points are not clamped: see the note in `clamp.rs`.
                     actor
                         .device
                         .set_protection(channel, protection)

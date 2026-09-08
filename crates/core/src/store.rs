@@ -633,6 +633,26 @@ fn validate_preset(new: &NewChannelPreset) -> Result<(), StoreError> {
             return Err(StoreError::Invalid(format!("{label} cannot be negative")));
         }
     }
+
+    // A trip point below the value it is protecting fires the moment the rail
+    // comes up, which makes the setting worse than leaving protection off. This
+    // is judged against the preset's own numbers, so it needs no channel: a
+    // preset that trips on itself is wrong wherever it is used.
+    if new.ovp_enabled && new.ovp_level < new.volt {
+        return Err(StoreError::Invalid(format!(
+            "over-voltage protection at {:.3} V would trip as soon as the rail \
+             reached its own {:.3} V",
+            new.ovp_level, new.volt
+        )));
+    }
+    if new.ocp_enabled && new.ocp_level < new.curr_limit {
+        return Err(StoreError::Invalid(format!(
+            "over-current protection at {:.3} A would trip before the rail \
+             reached its own {:.3} A limit",
+            new.ocp_level, new.curr_limit
+        )));
+    }
+
     Ok(())
 }
 

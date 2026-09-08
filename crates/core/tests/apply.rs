@@ -741,3 +741,53 @@ async fn power_cycling_brings_the_rails_back_up() {
 
     b.supervisor.shutdown().await;
 }
+
+#[tokio::test]
+async fn a_trip_point_above_the_channel_limit_does_not_block_an_apply() {
+    // The reported bug. CH3 is limited to 5 V; a preset running it at 5 V with
+    // OVP at 5.5 V was refused, so the tightest channel on the bench could only
+    // be used with protection switched off.
+    let b = bench();
+    wait_ready(&b).await;
+
+    let id = b
+        .store
+        .create_preset(&NewChannelPreset {
+            name: "generic 5v".into(),
+            volt: 5.0,
+            curr_limit: 0.5,
+            ovp_level: 5.5,
+            ovp_enabled: true,
+            ocp_level: 0.55,
+            ocp_enabled: true,
+        })
+        .unwrap()
+        .id;
+    let profile_id = profile(&b.store, "PCDU", vec![binding("psu1", "CH3", id, 1, 0)]);
+
+    apply(&b.store, &b.supervisor, profile_id, false)
+        .await
+        .expect("a backstop above the ceiling is not an output");
+
+    b.supervisor.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_setpoint_above_the_channel_limit_is_still_refused() {
+    // The rule that does still apply: the limit governs output.
+    let b = bench();
+    wait_ready(&b).await;
+
+    let id = preset(&b.store, "too much", 12.0);
+    let profile_id = profile(&b.store, "Board", vec![binding("psu1", "CH3", id, 1, 0)]);
+
+    assert_eq!(
+        apply(&b.store, &b.supervisor, profile_id, false)
+            .await
+            .unwrap_err()
+            .code(),
+        "CLAMP_EXCEEDED"
+    );
+
+    b.supervisor.shutdown().await;
+}

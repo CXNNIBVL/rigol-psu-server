@@ -341,9 +341,10 @@ fn preflight(profile: &DeviceProfile, state: &SystemState, force: bool) -> Resul
         // Clamps bind regardless of `force`. A force flag that could raise an
         // operator limit would make the whole config-file arrangement pointless.
         let preset = &binding.preset;
+        // The setpoint only: a trip point above the ceiling is the instrument's
+        // backstop, not an output.
         clamp
             .check_setpoint(preset.setpoint())
-            .and_then(|()| clamp.check_protection(preset.protection()))
             .map_err(|violation| ApplyError::ClampExceeded {
                 slot: binding.slot.clone(),
                 channel: channel_name.clone(),

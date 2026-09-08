@@ -389,6 +389,14 @@ These are the invariants. Everything above serves them.
 3. **A value exceeding a clamp is rejected with a clear error — never silently clamped
    down.** Silently receiving different settings than you asked for is worse than a
    refusal.
+
+   **The clamp governs output, not trip points.** This first also clamped OVP and
+   OCP, which was wrong: a trip point sits *above* the value it protects by
+   definition, so a channel limited to 5 V could not carry an OVP at 5.5 V and
+   the only way to configure it was to switch protection off — strictly less safe
+   than allowing a backstop that cannot itself produce a volt. A trip point
+   *below* its own setpoint is the real mistake, and it is rejected when a preset
+   is saved, where it can be judged against the numbers it sits beside.
 4. **Partial application of a multi-rail profile is a hard refusal, never forceable.**
    Half-powering a board can push current through an unpowered rail's protection
    diodes.

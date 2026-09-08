@@ -294,3 +294,50 @@ fn missing_rows_report_not_found() {
     assert_eq!(s.profile(42).unwrap_err().code(), "NOT_FOUND");
     assert_eq!(s.delete_profile(42).unwrap_err().code(), "NOT_FOUND");
 }
+
+#[test]
+fn accepts_a_trip_point_above_the_value_it_protects() {
+    // The case that used to be refused on apply. OVP at 5.5 V on a 5 V rail is
+    // the instrument's backstop; a channel limited to 5 V could otherwise carry
+    // no protection at all.
+    let s = store();
+    let mut p = preset("generic 5v", 5.0);
+    p.curr_limit = 0.5;
+    p.ovp_level = 5.5;
+    p.ovp_enabled = true;
+    p.ocp_level = 0.55;
+    p.ocp_enabled = true;
+    assert!(s.create_preset(&p).is_ok());
+}
+
+#[test]
+fn rejects_over_voltage_protection_that_would_trip_on_itself() {
+    // Below its own setpoint, the trip fires the moment the rail comes up —
+    // worse than leaving protection off.
+    let s = store();
+    let mut p = preset("self-tripping", 5.0);
+    p.ovp_level = 4.5;
+    p.ovp_enabled = true;
+    let err = s.create_preset(&p).unwrap_err();
+    assert_eq!(err.code(), "VALIDATION_FAILED");
+    assert!(err.to_string().contains("as soon as"), "got: {err}");
+}
+
+#[test]
+fn rejects_over_current_protection_that_would_trip_on_itself() {
+    let s = store();
+    let mut p = preset("self-tripping", 5.0);
+    p.curr_limit = 2.0;
+    p.ocp_level = 1.0;
+    p.ocp_enabled = true;
+    assert!(s.create_preset(&p).is_err());
+}
+
+#[test]
+fn ignores_a_low_trip_point_that_is_switched_off() {
+    let s = store();
+    let mut p = preset("off", 5.0);
+    p.ovp_level = 1.0;
+    p.ovp_enabled = false;
+    assert!(s.create_preset(&p).is_ok());
+}
