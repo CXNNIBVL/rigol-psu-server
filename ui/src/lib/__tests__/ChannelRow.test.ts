@@ -24,13 +24,16 @@ describe('ChannelRow', () => {
     expect(screen.getByTestId('power')).toHaveTextContent('Unknown');
   });
 
-  it('disables the whole control on an offline supply', () => {
+  it('offers no controls at all on an offline supply', () => {
+    // Greyed-out controls are things that cannot be done; the badge already
+    // says why, so the row simply does not carry them.
     render(ChannelRow, {
       device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
       channel: unknownChannel(),
     });
-    expect(screen.getByRole('radio', { name: 'On' })).toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Off' })).toBeDisabled();
+    expect(screen.queryByRole('radio', { name: 'On' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Off' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('CH1 voltage')).not.toBeInTheDocument();
   });
 
   it('lets a quarantined supply be switched off but not on', () => {
@@ -44,20 +47,18 @@ describe('ChannelRow', () => {
     expect(screen.getByRole('radio', { name: 'Off' })).toBeEnabled();
   });
 
-  it('selects the segment matching the rail, and neither when unknown', () => {
-    const { unmount } = render(ChannelRow, {
-      device: device(),
-      channel: channel({ output_on: true }),
-    });
+  it('selects the segment matching the rail', () => {
+    render(ChannelRow, { device: device(), channel: channel({ output_on: true }) });
     expect(screen.getByRole('radio', { name: 'On' })).toBeChecked();
-    unmount();
+  });
 
+  it('selects neither segment when the rail state is unknown', () => {
+    // Defaulting to "Off" would assert something about a rail nobody can see.
+    // A quarantined supply is reachable, so the control is still present.
     render(ChannelRow, {
-      device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
+      device: device({ state: 'quarantined', reported_serial: 'X' } as never),
       channel: unknownChannel(),
     });
-    // Neither segment may be selected: defaulting to "Off" would assert
-    // something about a rail we cannot see.
     expect(screen.getByRole('radio', { name: 'On' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Off' })).not.toBeChecked();
   });
@@ -72,11 +73,17 @@ describe('ChannelRow', () => {
     expect(detail).toHaveTextContent(/left energised/i);
   });
 
-  it('shows the configured limits at their own precision', () => {
-    // `5.500 V` implies a thousandth of a volt of meaning that a limit set to
-    // 5.5 does not have.
+  it('shows the limit only while editing, where it constrains something', async () => {
+    // It used to occupy a column of its own, repeating the same pair nine times
+    // down the page.
+    const { default: userEvent } = await import('@testing-library/user-event');
     render(ChannelRow, { device: device(), channel: channel() });
-    expect(screen.getByText('5.5 V / 2 A')).toBeInTheDocument();
+
+    expect(screen.queryByText(/max 5\.5 V/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit CH1 setpoint' }));
+    // At its own precision: `5.500 V` implies a thousandth of a volt of meaning
+    // that a limit set to 5.5 does not have.
+    expect(screen.getByText('max 5.5 V / 2 A')).toBeInTheDocument();
   });
 
   it('shows a dash for an idle rail, and the word for an unseen one', () => {
@@ -98,22 +105,17 @@ describe('ChannelRow', () => {
     expect(screen.getByTestId('volt')).toHaveTextContent('Unknown');
   });
 
-  it('seeds the setpoint fields from the instrument', () => {
-    render(ChannelRow, { device: device(), channel: channel() });
-    expect(screen.getByLabelText('CH1 voltage')).toHaveValue(3.3);
-    expect(screen.getByLabelText('CH1 current limit')).toHaveValue(1);
-  });
-
-  it('offers Apply only once something has been changed', async () => {
+  it('shows the setpoint as text until you ask to change it', async () => {
+    // Nine pairs of permanently open input boxes out-shouted the readings,
+    // which are the point of the table.
     const { default: userEvent } = await import('@testing-library/user-event');
     render(ChannelRow, { device: device(), channel: channel() });
 
-    // No permanently dead button sitting in every row.
-    expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('CH1 voltage')).not.toBeInTheDocument();
 
-    await userEvent.clear(screen.getByLabelText('CH1 voltage'));
-    await userEvent.type(screen.getByLabelText('CH1 voltage'), '4');
-    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit CH1 setpoint' }));
+    expect(screen.getByLabelText('CH1 voltage')).toHaveValue(3.3);
+    expect(screen.getByLabelText('CH1 current limit')).toHaveValue(1);
   });
 
   it('lets the current limit be changed on its own', async () => {
@@ -130,6 +132,7 @@ describe('ChannelRow', () => {
     );
 
     render(ChannelRow, { device: device(), channel: channel() });
+    await userEvent.click(screen.getByRole('button', { name: 'Edit CH1 setpoint' }));
     await userEvent.clear(screen.getByLabelText('CH1 current limit'));
     await userEvent.type(screen.getByLabelText('CH1 current limit'), '0.5');
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
@@ -176,11 +179,13 @@ describe('ChannelRow', () => {
     );
     unmount();
 
+    // No value at all when the rail's state is unknown, so nothing is accented.
+    // Quarantined rather than offline: an offline supply carries no control to
+    // inspect.
     render(ChannelRow, {
-      device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
+      device: device({ state: 'quarantined', reported_serial: 'X' } as never),
       channel: unknownChannel(),
     });
-    // No value at all when the rail's state is unknown, so nothing is accented.
     expect(document.querySelector('[data-scope="radio-group"]')).not.toHaveAttribute(
       'data-output',
     );

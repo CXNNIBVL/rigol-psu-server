@@ -65,6 +65,7 @@ test('a setpoint within limits is applied and reflected back', async ({ page }) 
   await page.goto('/');
   const card = page.getByTestId('channel-psu1-CH1');
 
+  await card.getByRole('button', { name: 'Edit CH1 setpoint' }).click();
   await card.getByLabel('CH1 voltage').fill('3.3');
   await card.getByLabel('CH1 current limit').fill('1.0');
   await card.getByRole('button', { name: 'Apply' }).click();
@@ -87,6 +88,7 @@ test('a setpoint above the operator limit is refused, with both numbers', async 
   // CH3 is a 5 V channel in the simulated config.
   const card = page.getByTestId('channel-psu1-CH3');
 
+  await card.getByRole('button', { name: 'Edit CH3 setpoint' }).click();
   await card.getByLabel('CH3 voltage').fill('12');
   await card.getByRole('button', { name: 'Apply' }).click();
 
@@ -140,11 +142,9 @@ test('an offline supply explains itself and disables its controls', async ({ pag
   await expect(device.getByTestId('device-detail')).toContainText(/may still be live/i);
 
   const card = page.getByTestId('channel-psu3-CH1');
-  await expect(card.getByRole('radio', { name: 'On' })).toBeDisabled();
-  await expect(card.getByRole('radio', { name: 'Off' })).toBeDisabled();
-  // Neither segment selected: we do not know which way the rail is set.
-  await expect(card.getByRole('radio', { name: 'On' })).not.toBeChecked();
-  await expect(card.getByRole('radio', { name: 'Off' })).not.toBeChecked();
+  // No dead controls: there is nothing to be done with an unreachable supply.
+  await expect(card.getByRole('radio', { name: 'On' })).toHaveCount(0);
+  await expect(card.getByRole('button', { name: /Edit .* setpoint/ })).toHaveCount(0);
 });
 
 test('a supply recovers on its own once the fault clears', async ({ page }) => {
@@ -341,17 +341,32 @@ test.describe('authoring', () => {
     await expect(row.getByRole('button', { name: `Delete in use ${stamp}` })).toBeDisabled();
   });
 
-  test('the health view reports a faulted supply', async ({ page }) => {
+  test('a supply\'s identity is available from its own panel', async ({ page }) => {
+    // What the Health section used to exist for. Its only unique content was
+    // the two serials, which now sit on the supply they describe.
     await page.goto('/');
-    await page.getByTestId('nav-health').click();
-    await expect(page.getByTestId('all-well')).toBeVisible();
+    const identity = page.getByTestId('identity-psu1');
+    await expect(identity).toBeVisible();
+    // The <summary>, not the device path inside the panel it reveals.
+    await identity.locator('summary').click();
+    await expect(identity).toContainText('/dev/rigol-psu1');
+    await expect(identity).toContainText('Configured serial');
+    await expect(identity).toContainText('Reported serial');
+  });
 
+  test('the bench answers its own top-line question', async ({ page }) => {
+    await page.goto('/');
+    const header = page.locator('main header').first();
+    await expect(header).toContainText('of 9 rails live');
+    await expect(header).toContainText('W total');
+
+    // And says when something needs looking at, from the bench itself.
+    await expect(page.getByTestId('bench-attention')).toHaveCount(0);
     await injectFault(page, 'psu2', 'disconnected');
-    await expect(page.getByTestId('health-psu2')).toContainText('Offline', {
-      timeout: 10_000,
-    });
-    await expect(page.getByTestId('health-detail-psu2')).toContainText(/may still be live/i);
-    await expect(page.getByTestId('all-well')).toHaveCount(0);
+    await expect(page.getByTestId('bench-attention')).toHaveText(
+      '1 supply needs attention',
+      { timeout: 10_000 },
+    );
   });
 });
 
@@ -374,18 +389,18 @@ test.describe('navigation rail', () => {
     // A supply dropping out is worth noticing while you are editing a profile,
     // not only while you happen to be looking at the bench.
     await page.goto('/');
-    await expect(page.getByTestId('nav-health-count')).toHaveCount(0);
+    await expect(page.getByTestId('nav-attention-count')).toHaveCount(0);
 
     await injectFault(page, 'psu1', 'disconnected');
-    await expect(page.getByTestId('nav-health-count')).toHaveText('1', {
+    await expect(page.getByTestId('nav-attention-count')).toHaveText('1', {
       timeout: 10_000,
     });
 
     await page.getByTestId('nav-presets').click();
-    await expect(page.getByTestId('nav-health-count')).toBeVisible();
+    await expect(page.getByTestId('nav-attention-count')).toBeVisible();
 
     await injectFault(page, 'psu2', 'timeout');
-    await expect(page.getByTestId('nav-health-count')).toHaveText('2', {
+    await expect(page.getByTestId('nav-attention-count')).toHaveText('2', {
       timeout: 10_000,
     });
   });
@@ -415,8 +430,8 @@ test.describe('navigation rail', () => {
     const shapes = await page.locator('[data-part="menu"] svg').evaluateAll((svgs) =>
       svgs.map((svg) => svg.innerHTML.replace(/<!--.*?-->/g, '').trim()),
     );
-    expect(shapes).toHaveLength(4);
-    expect(new Set(shapes).size).toBe(4);
+    expect(shapes).toHaveLength(3);
+    expect(new Set(shapes).size).toBe(3);
   });
 
   test('accents the selected section, and not only with colour', async ({ page }) => {

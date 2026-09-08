@@ -1,7 +1,7 @@
 # Frontend design review
 
-**Status:** §2, §3, §4, §6, §7, §10, §11 and §12 implemented; §1 out of scope;
-§5 partly done; §9 not started
+**Status:** §2–§4, §6, §7, §10–§14 implemented; §1 out of scope; §5 partly done;
+§9 not started
 **Date:** 2026-09-08
 **Reviewed:** all four sections at 1440×900, plus 390×844 mobile
 
@@ -528,6 +528,48 @@ One note on the palette: green now also appears as the hover state for "new",
 which slightly overloads the accent that otherwise means *energised*. It reads
 fine because it is a transient hover on a control that touches no hardware, but
 it is worth knowing the accent is doing one more job than §2 assigned it.
+
+---
+
+## 14. Health folded into Bench, and the subtractions around it
+
+**The Health section is gone.** Its only unique content was the configured and
+reported serial numbers; status, offline reason, quarantine explanation, panel
+lock and limit violations were all already on Bench. A whole section existed to
+hold two strings, and every visit to it meant leaving the thing it described.
+
+What replaced it:
+
+- **Identity is a disclosure on the supply itself.** Slot, device node and both
+  serials, closed by default — reference facts needed rarely and needed
+  precisely when something is wrong. The quarantine banner still names both
+  serials inline, which is the case that actually matters.
+- **The bench answers its own top-line question.** Rails live, total draw, and
+  anything needing attention, in the page header. This is the summary §3 asked
+  for and never got; it also gives that header something to say, where it
+  previously repeated the rail's own wordmark.
+- **The attention count moved to Bench**, which is where the supply in question
+  lives.
+
+Five subtractions went with it, all removing things rather than adding:
+
+1. **Setpoints are text until you ask to change them.** Nine pairs of
+   permanently open inputs — eighteen borders — out-shouted the readings, which
+   are the point of the table. A pencil opens the one row being edited.
+2. **The Limit column is gone.** It repeated the same pair nine times down the
+   page; the limit now appears beside the inputs while editing, where it is
+   actually constraining something.
+3. **An offline supply carries no controls.** Nine greyed-out inputs and toggles
+   are nine things that cannot be done, and the banner already says why.
+4. **The per-supply summary has one shape**, whatever the state. It previously
+   rendered three different strings depending on what was happening.
+5. **The `·` is gone from that summary.** §5 called out middle-dot meta strings
+   as template chrome and this review then introduced one; parallel facts are
+   separated by rules, per §11's own rule about vertical rules.
+
+Connection status moved into the rail's footer. It is chrome rather than
+content, and belonged with the frame rather than inside whichever view happened
+to be open.
 
 ---
 

@@ -12,6 +12,7 @@
   } from '../format';
   import { ApiFailure, setOutput, setSetpoint } from '../api';
   import StatusBadge from './StatusBadge.svelte';
+  import ActionIcon from './ActionIcon.svelte';
 
   let { device, channel }: { device: DeviceView; channel: ChannelView } = $props();
 
@@ -32,6 +33,7 @@
   // The setpoint fields start from what the instrument reports and are only
   // "dirty" once someone actually changes them — so a value arriving from the
   // 0.5 Hz setpoint poll does not fight with what is being typed.
+  let editing = $state(false);
   let volts = $state<string | null>(null);
   let amps = $state<string | null>(null);
   let error = $state<string | null>(null);
@@ -41,14 +43,23 @@
   const shownAmps = $derived(amps ?? channel.setpoint?.curr_limit.toFixed(3) ?? '');
   const dirty = $derived(volts !== null || amps !== null);
 
+  function open() {
+    editing = true;
+    error = null;
+  }
+
   function revert() {
+    editing = false;
     volts = null;
     amps = null;
     error = null;
   }
 
   async function applySetpoint() {
-    if (!dirty) return;
+    if (!dirty) {
+      revert();
+      return;
+    }
     error = null;
     busy = true;
     try {
@@ -134,51 +145,65 @@
   </td>
 
   <td class="py-2 px-3">
-    <div class="flex items-center gap-1">
-      <input
-        class="input w-24 text-right"
-        type="number"
-        step="0.001"
-        min="0"
-        aria-label="{channel.id} voltage"
-        value={shownVolts}
-        oninput={(e) => (volts = e.currentTarget.value)}
-        onkeydown={onKey}
-        disabled={!writable || busy}
-      />
-      <span class="text-xs opacity-60">V</span>
-      <input
-        class="input w-24 text-right"
-        type="number"
-        step="0.001"
-        min="0"
-        aria-label="{channel.id} current limit"
-        value={shownAmps}
-        oninput={(e) => (amps = e.currentTarget.value)}
-        onkeydown={onKey}
-        disabled={!writable || busy}
-      />
-      <span class="text-xs opacity-60">A</span>
-      {#if dirty}
-        <!-- Appears only once something has changed, so the row is not carrying
-             a permanently dead button. Enter does the same thing. -->
-        <button
-          class="btn btn-sm preset-filled"
-          type="button"
-          onclick={applySetpoint}
+    {#if channel.setpoint === null}
+      <span class="opacity-60">{UNKNOWN}</span>
+    {:else if editing}
+      <!-- Inputs exist only for the row being edited. Nine pairs of permanently
+           open boxes out-shouted the readings, which are the point of the
+           table. -->
+      <div class="flex items-center gap-1">
+        <input
+          class="input w-24 text-right"
+          type="number"
+          step="0.001"
+          min="0"
+          max={channel.limits.max_volt}
+          aria-label="{channel.id} voltage"
+          value={shownVolts}
+          oninput={(e) => (volts = e.currentTarget.value)}
+          onkeydown={onKey}
           disabled={busy}
-        >
+        />
+        <span class="text-xs opacity-60">V</span>
+        <input
+          class="input w-24 text-right"
+          type="number"
+          step="0.001"
+          min="0"
+          max={channel.limits.max_curr}
+          aria-label="{channel.id} current limit"
+          value={shownAmps}
+          oninput={(e) => (amps = e.currentTarget.value)}
+          onkeydown={onKey}
+          disabled={busy}
+        />
+        <span class="text-xs opacity-60">A</span>
+        <button class="btn btn-sm preset-filled" type="button" onclick={applySetpoint} disabled={busy}>
           Apply
         </button>
-        <button class="btn btn-sm preset-tonal" type="button" onclick={revert}>
-          Cancel
-        </button>
-      {/if}
-    </div>
-  </td>
-
-  <td class="py-2 px-3 text-right text-xs opacity-60 whitespace-nowrap">
-    {trim(channel.limits.max_volt, 'V')} / {trim(channel.limits.max_curr, 'A')}
+        <button class="btn btn-sm preset-tonal" type="button" onclick={revert}>Cancel</button>
+        <!-- The limit is shown where it actually constrains something, rather
+             than repeated down a column of its own. -->
+        <span class="text-xs opacity-60 whitespace-nowrap">
+          max {trim(channel.limits.max_volt, 'V')} / {trim(channel.limits.max_curr, 'A')}
+        </span>
+      </div>
+    {:else}
+      <div class="flex items-center gap-2">
+        <span class="reading tabular-nums">
+          {channel.setpoint.volt.toFixed(3)} <span class="text-xs opacity-60">V</span>
+          <span class="opacity-40">/</span>
+          {channel.setpoint.curr_limit.toFixed(3)} <span class="text-xs opacity-60">A</span>
+        </span>
+        {#if writable}
+          <ActionIcon
+            action="edit"
+            label="Edit {channel.id} setpoint"
+            onclick={open}
+          />
+        {/if}
+      </div>
+    {/if}
   </td>
 
   <td class="py-2 pl-3">
@@ -186,10 +211,14 @@
       {#if badge}
         <StatusBadge status={badge} />
       {/if}
+      {#if device.state === 'offline'}
+        <!-- Nine greyed-out controls are nine things that cannot be done. The
+             badge already says why. -->
+      {:else}
       <SegmentedControl
         value={outputValue}
         onValueChange={(details) => toggle(details.value === 'on')}
-        disabled={busy || device.state === 'offline'}
+        disabled={busy}
         aria-label="{channel.id} output"
         data-output={outputValue || undefined}
       >
@@ -206,13 +235,14 @@
           </SegmentedControl.Item>
         </SegmentedControl.Control>
       </SegmentedControl>
+      {/if}
     </div>
   </td>
 </tr>
 
 {#if detail || error}
   <tr>
-    <td colspan="7" class="pb-2 px-3">
+    <td colspan="6" class="pb-2 px-3">
       {#if detail}
         <p class="text-xs preset-tonal-error p-2 rounded" data-testid="channel-detail">
           {detail}

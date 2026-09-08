@@ -20,7 +20,7 @@
   times, and what makes a column of currents comparable down the page.
 -->
 <section
-  class="card preset-outlined-surface-200-800 p-4 space-y-3"
+  class="card preset-outlined-surface-200-800 p-4 space-y-3 relative"
   data-testid="device-{device.slot}"
 >
   <header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -37,15 +37,48 @@
       {/if}
     </div>
 
-    <!-- What the supply as a whole is doing, before you read its rows. -->
-    <p class="reading text-sm opacity-70 tabular-nums">
-      {#if device.state === 'online'}
-        {live === 0 ? 'No rails live' : `${live} of 3 rails live`}
-        {#if live > 0}&nbsp;· {draw.toFixed(2)} W{/if}
-      {:else}
-        {device.slot}
+    <!-- One shape whatever the state: the same two facts in the same place,
+         rather than three different strings depending on what is happening. -->
+    <div class="flex items-center gap-4">
+      {#if device.state !== 'offline'}
+        <p class="reading text-sm tabular-nums">
+          <span class="font-semibold">{live}</span>
+          <span class="opacity-70">of {device.channels.length} rails live</span>
+        </p>
+        <div class="vr h-4"></div>
+        <p class="reading text-sm tabular-nums">
+          <span class="font-semibold">{draw.toFixed(2)}</span>
+          <span class="opacity-70">W</span>
+        </p>
+        <div class="vr h-4"></div>
       {/if}
-    </p>
+
+      <!--
+        Identity, on demand. Slot, device node and the two serials are reference
+        facts: needed rarely, and needed precisely when something is wrong. They
+        had a whole section to themselves and duplicated everything around them.
+      -->
+      <details class="text-xs" data-testid="identity-{device.slot}">
+        <summary class="cursor-pointer opacity-60 hover:opacity-100 select-none">
+          {device.slot}
+        </summary>
+        <dl class="absolute z-10 mt-1 card preset-outlined-surface-200-800 p-3 space-y-1 bg-surface-100-900">
+          <div class="flex gap-3">
+            <dt class="opacity-60 w-32">Device node</dt>
+            <dd class="reading">{device.device}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="opacity-60 w-32">Configured serial</dt>
+            <dd class="reading">{device.expected_serial}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="opacity-60 w-32">Reported serial</dt>
+            <!-- Unknown, not blank: we have not heard from the instrument. -->
+            <dd class="reading">{device.reported_serial ?? 'Unknown'}</dd>
+          </div>
+        </dl>
+      </details>
+    </div>
   </header>
 
   {#if status.detail}
@@ -63,7 +96,6 @@
           <th scope="col" class="pb-1 px-3 text-right font-normal">Current</th>
           <th scope="col" class="pb-1 px-3 text-right font-normal">Power</th>
           <th scope="col" class="pb-1 px-3 text-left font-normal">Setpoint</th>
-          <th scope="col" class="pb-1 px-3 text-right font-normal">Limit</th>
           <th scope="col" class="pb-1 pl-3 text-right font-normal">Output</th>
         </tr>
       </thead>
