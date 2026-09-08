@@ -63,10 +63,30 @@
 	}
 }
 
+/*
+  Everything, not just the one component I happened to think of. The collapsible
+  chevron was suppressed here and the rest of the interface — button fills, the
+  power button lighting up, the rail's selected state — kept animating, which is
+  most of what someone asking for reduced motion is asking about.
+
+  Not zero: a hair over it, so transition and animation events still fire and
+  anything waiting on them is not left hanging.
+*/
 @media (prefers-reduced-motion: reduce) {
-	[data-scope='collapsible'][data-part='indicator'] {
-		transition: none;
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
 	}
+}
+
+/* Icon buttons carried the thinnest focus ring on the smallest targets, which
+   is backwards. Matches the 3px every other control gets. */
+.btn-icon:focus-visible {
+	outline-width: 3px;
 }
 
 /* Number inputs carry native spinner arrows that are useless here — a rail is

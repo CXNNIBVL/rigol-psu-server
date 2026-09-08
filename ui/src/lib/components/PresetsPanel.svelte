@@ -12,6 +12,7 @@
   import ActionIcon from './ActionIcon.svelte';
   import FormDialog from './FormDialog.svelte';
   import SearchBox from './SearchBox.svelte';
+  import EmptyState from './EmptyState.svelte';
 
   let presets = $state<ChannelPreset[]>([]);
   let profiles = $state<DeviceProfile[]>([]);
@@ -68,6 +69,8 @@
       ]),
     ),
   );
+
+  const empty = $derived(loaded && presets.length === 0);
 
   const shown = $derived(
     presets.filter((preset) =>
@@ -134,15 +137,17 @@
         their own they are not applied to anything.
       </p>
     </div>
-    <div class="flex items-center gap-3">
-      <SearchBox
-        bind:value={query}
-        label="Search settings"
-        count={shown.length}
-        total={presets.length}
-      />
-      <ActionIcon action="new" label="New settings" testid="new-preset" onclick={create} />
-    </div>
+    {#if !empty}
+      <div class="flex items-center gap-3">
+        <SearchBox
+          bind:value={query}
+          label="Search settings"
+          count={shown.length}
+          total={presets.length}
+        />
+        <ActionIcon action="new" label="New settings" testid="new-preset" onclick={create} />
+      </div>
+    {/if}
   </div>
 
   {#if error}
@@ -151,6 +156,18 @@
     </p>
   {/if}
 
+  {#if empty}
+    <EmptyState
+      title="No rail settings yet"
+      action="Add settings"
+      onAction={create}
+      testid="empty-presets"
+    >
+      A setting is one channel's voltage and current limit, saved under a name so
+      profiles can use it. You can also create them as you go, from a profile's
+      rails.
+    </EmptyState>
+  {:else}
   <!-- A table rather than cards: these are the smallest unit, least interesting
        alone and most useful compared down a column. -->
   <div class="card preset-outlined-surface-200-800 overflow-x-auto max-h-[calc(100vh-22rem)] overflow-y-auto">
@@ -202,14 +219,7 @@
             </td>
           </tr>
         {/each}
-        {#if loaded && presets.length === 0}
-          <tr class="border-t border-surface-200-800">
-            <td colspan="7" class="p-4 text-sm opacity-60">
-              No saved settings yet. Add one here, or create them as you go from a
-              profile's rails.
-            </td>
-          </tr>
-        {:else if loaded && shown.length === 0}
+        {#if loaded && shown.length === 0}
           <tr class="border-t border-surface-200-800">
             <td colspan="7" class="p-4 text-sm opacity-60">
               Nothing matches "{query}".
@@ -219,6 +229,7 @@
       </tbody>
     </table>
   </div>
+  {/if}
 
   {#if confirming}
     <div

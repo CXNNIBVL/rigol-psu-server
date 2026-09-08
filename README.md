@@ -34,6 +34,9 @@ just dev          # three simulated supplies on 127.0.0.1:8080
    address, serials and per-channel limits.
 3. Install `deploy/rigol-psu.service`.
 
+See [deploy/README.md](deploy/README.md) for the full procedure, including
+upgrades and what to check when a supply comes up quarantined or offline.
+
 The per-channel limits in `config.toml` cannot be raised through the API and are
 not editable from the UI. The server refuses to start without them.
 

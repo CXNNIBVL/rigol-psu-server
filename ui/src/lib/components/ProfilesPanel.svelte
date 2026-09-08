@@ -6,6 +6,7 @@
   import ActionIcon from './ActionIcon.svelte';
   import FormDialog from './FormDialog.svelte';
   import SearchBox from './SearchBox.svelte';
+  import EmptyState from './EmptyState.svelte';
 
   let { devices }: { devices: DeviceView[] } = $props();
 
@@ -17,6 +18,7 @@
   let editing = $state<DeviceProfile | null | undefined>(undefined);
   let confirming = $state<DeviceProfile | null>(null);
   let query = $state('');
+  const empty = $derived(loaded && profiles.length === 0);
 
   // Matches the profile's own words and the rails it names, so "psu2" or "3v3"
   // finds the devices that use them — which is how you look for a profile when
@@ -75,20 +77,22 @@
         A profile is a device and the rails it needs, in the order they come up.
       </p>
     </div>
-    <div class="flex items-center gap-3">
-      <SearchBox
-        bind:value={query}
-        label="Search profiles"
-        count={shown.length}
-        total={profiles.length}
-      />
-      <ActionIcon
-        action="new"
-        label="New profile"
-        testid="new-profile"
-        onclick={() => (editing = null)}
-      />
-    </div>
+    {#if !empty}
+      <div class="flex items-center gap-3">
+        <SearchBox
+          bind:value={query}
+          label="Search profiles"
+          count={shown.length}
+          total={profiles.length}
+        />
+        <ActionIcon
+          action="new"
+          label="New profile"
+          testid="new-profile"
+          onclick={() => (editing = null)}
+        />
+      </div>
+    {/if}
   </div>
 
   {#if error}
@@ -113,11 +117,17 @@
     {/if}
   </FormDialog>
 
-  {#if loaded && profiles.length === 0}
-    <p class="opacity-60 text-sm">
-      No profiles yet. Create one to stage a device's rails together and bring
-      them up in order.
-    </p>
+  {#if empty}
+    <EmptyState
+      title="No profiles yet"
+      action="New profile"
+      onAction={() => (editing = null)}
+      testid="empty-profiles"
+    >
+      A profile names a device and the rails it needs, so you can stage them
+      together and bring them up in order — and power-cycle them later without
+      touching each channel.
+    </EmptyState>
   {:else if loaded && shown.length === 0}
     <p class="opacity-60 text-sm">
       No profile matches "{query}".

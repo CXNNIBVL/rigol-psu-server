@@ -778,6 +778,41 @@ bench keeps its place rather than becoming an escape hatch.
 
 ---
 
+## 20. Quality floor
+
+Three things checked rather than assumed, after a pass that found two of them
+broken.
+
+**Reduced motion was suppressed on exactly one component.** The collapsible
+chevron had its transition removed and the rest of the interface kept animating
+— button fills, the power button lighting up, the rail's selected state — which
+is most of what someone asking for reduced motion is asking about. Now a blanket
+rule, set a hair above zero rather than at it so transition events still fire and
+nothing waiting on one is left hanging.
+
+**Empty lists were chrome first.** Both showed a search box, a count of zero and
+a full set of column headings over no rows, then prose saying "add one here"
+while the only add affordance was an icon in the far corner. An empty screen is
+an invitation to act: they now carry the action itself, and say why the thing is
+worth making.
+
+**Focus rings were inconsistent** — 1px on the icon buttons, 3px everywhere else,
+which is the thinnest ring on the smallest targets.
+
+Worth recording how the first check went wrong: a probe using `element.focus()`
+reported no focus ring anywhere, because `:focus-visible` does not match
+programmatic focus. Real `Tab` navigation showed a 3px outline throughout. The
+defect was real but much smaller than the first measurement claimed — a reminder
+that a tool that reports something missing may simply be asking the wrong
+question.
+
+All three now have tests: reduced motion and ring consistency in the browser,
+the empty state at component level. The empty-state case was written as a
+browser test first and skipped in practice, because the suite creates settings
+before it runs — a test that skips is not a test.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

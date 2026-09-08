@@ -833,4 +833,38 @@ test.describe('lists', () => {
 
     await card.getByRole('button', { name: 'Power off' }).click();
   });
+
+  test('reduced motion is respected', async ({ browser }) => {
+    // The quality floor, checked rather than assumed: one component had its
+    // transition suppressed and the rest of the interface kept animating.
+    const context = await browser.newContext({ reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    await page.goto('/');
+    await expect(page.getByTestId('nav-bench')).toBeVisible();
+
+    const animating = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('*')]
+          .map((el) => getComputedStyle(el).transitionDuration)
+          .filter((d) => parseFloat(d) > 0.005).length,
+    );
+    expect(animating).toBe(0);
+    await context.close();
+  });
+
+  test('every focusable control shows the same focus ring', async ({ page }) => {
+    // Icon buttons had the thinnest ring on the smallest targets.
+    await open(page);
+    const widths = new Set<string>();
+    for (let i = 0; i < 8; i += 1) {
+      await page.keyboard.press('Tab');
+      const width = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        return getComputedStyle(el).outlineWidth;
+      });
+      if (width) widths.add(width);
+    }
+    expect([...widths]).toEqual(['3px']);
+  });
 });
