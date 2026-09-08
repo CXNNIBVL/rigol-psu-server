@@ -9,12 +9,17 @@
   } from '../api';
   import { trim } from '../format';
   import type { ChannelPreset, DeviceProfile } from '../types';
+  import ActionIcon from './ActionIcon.svelte';
+  import FormDialog from './FormDialog.svelte';
+  import SearchBox from './SearchBox.svelte';
 
   let presets = $state<ChannelPreset[]>([]);
   let profiles = $state<DeviceProfile[]>([]);
   let error = $state<string | null>(null);
   let loaded = $state(false);
-  let editing = $state<ChannelPreset | null>(null);
+  // undefined = dialog closed; null = creating; a preset = editing that one.
+  let editing = $state<ChannelPreset | null | undefined>(undefined);
+  let query = $state('');
   let confirming = $state<ChannelPreset | null>(null);
   let busy = $state(false);
   let form = $state(blank());
@@ -64,14 +69,26 @@
     ),
   );
 
+  const shown = $derived(
+    presets.filter((preset) =>
+      preset.name.toLowerCase().includes(query.trim().toLowerCase()),
+    ),
+  );
+
   function edit(preset: ChannelPreset) {
     editing = preset;
     const { id: _id, ...rest } = preset;
     form = { ...rest };
   }
 
-  function cancel() {
+  function create() {
     editing = null;
+    form = blank();
+    error = null;
+  }
+
+  function cancel() {
+    editing = undefined;
     form = blank();
     error = null;
   }
@@ -109,12 +126,23 @@
 </script>
 
 <section class="space-y-4" data-testid="presets-panel">
-  <div>
-    <h2 class="h3">Rail settings</h2>
-    <p class="text-sm opacity-70">
-      Saved voltage and current settings for one channel. Profiles use them; on
-      their own they are not applied to anything.
-    </p>
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h2 class="h3">Rail settings</h2>
+      <p class="text-sm opacity-70">
+        Saved voltage and current settings for one channel. Profiles use them; on
+        their own they are not applied to anything.
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <SearchBox
+        bind:value={query}
+        label="Search settings"
+        count={shown.length}
+        total={presets.length}
+      />
+      <ActionIcon action="new" label="New settings" testid="new-preset" onclick={create} />
+    </div>
   </div>
 
   {#if error}
@@ -125,7 +153,7 @@
 
   <!-- A table rather than cards: these are the smallest unit, least interesting
        alone and most useful compared down a column. -->
-  <div class="card preset-outlined-surface-200-800 overflow-x-auto">
+  <div class="card preset-outlined-surface-200-800 overflow-x-auto max-h-[calc(100vh-22rem)] overflow-y-auto">
     <table class="w-full text-sm">
       <thead>
         <tr class="text-xs opacity-60">
@@ -139,7 +167,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each presets as preset (preset.id)}
+        {#each shown as preset (preset.id)}
           <tr class="border-t border-surface-200-800" data-testid="preset-{preset.id}">
             <th scope="row" class="p-3 text-left font-semibold">{preset.name}</th>
             <td class="reading p-3 text-right tabular-nums">{trim(preset.volt, 'V')}</td>
@@ -155,26 +183,21 @@
             </td>
             <td class="p-3">
               <div class="flex justify-end gap-1">
-                <button
-                  class="btn btn-sm preset-tonal"
-                  type="button"
+                <ActionIcon
+                  action="edit"
+                  label="Edit {preset.name}"
                   onclick={() => edit(preset)}
                   disabled={busy}
-                >
-                  Edit
-                </button>
-                <!-- Quiet until sought; red belongs on the confirmation. -->
-                <button
-                  class="btn btn-sm hover:preset-tonal-error"
-                  type="button"
+                />
+                <ActionIcon
+                  action="delete"
+                  label="Delete {preset.name}"
                   onclick={() => (confirming = preset)}
                   disabled={busy || (usage.get(preset.id) ?? []).length > 0}
                   title={(usage.get(preset.id) ?? []).length > 0
-                    ? 'Used by a profile'
+                    ? `Used by ${(usage.get(preset.id) ?? []).join(', ')}`
                     : undefined}
-                >
-                  Delete
-                </button>
+                />
               </div>
             </td>
           </tr>
@@ -182,8 +205,14 @@
         {#if loaded && presets.length === 0}
           <tr class="border-t border-surface-200-800">
             <td colspan="7" class="p-4 text-sm opacity-60">
-              No saved settings yet. Add one below, or create them as you go from
-              a profile's rails.
+              No saved settings yet. Add one here, or create them as you go from a
+              profile's rails.
+            </td>
+          </tr>
+        {:else if loaded && shown.length === 0}
+          <tr class="border-t border-surface-200-800">
+            <td colspan="7" class="p-4 text-sm opacity-60">
+              Nothing matches "{query}".
             </td>
           </tr>
         {/if}
@@ -215,8 +244,13 @@
     </div>
   {/if}
 
-  <form class="card preset-outlined-surface-200-800 p-4 space-y-3 max-w-3xl" onsubmit={submit} novalidate>
-    <h3 class="h4">{editing ? `Edit ${editing.name}` : 'New settings'}</h3>
+  <FormDialog
+    open={editing !== undefined}
+    title={editing ? `Edit ${editing.name}` : 'New settings'}
+    onclose={cancel}
+    testid="preset-dialog"
+  >
+      <form class="space-y-3" onsubmit={submit} novalidate>
 
     <div class="flex flex-wrap gap-3">
       <label class="label">
@@ -258,11 +292,11 @@
       <button class="btn preset-filled" type="submit" disabled={busy || !form.name}>
         {editing ? 'Save settings' : 'Add settings'}
       </button>
-      {#if editing}
-        <button class="btn preset-tonal" type="button" onclick={cancel} disabled={busy}>
-          Cancel
-        </button>
-      {/if}
+      <button class="btn preset-tonal" type="button" onclick={cancel} disabled={busy}>
+        Cancel
+      </button>
     </div>
-  </form>
+      </form>
+  </FormDialog>
+
 </section>

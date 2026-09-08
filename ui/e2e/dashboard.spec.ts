@@ -259,19 +259,24 @@ test.describe('authoring', () => {
 
     // 1. A preset.
     await page.getByTestId('nav-presets').click();
+    await page.getByTestId('new-preset').click();
+    await expect(page.getByTestId('preset-dialog')).toBeVisible();
     await page.getByLabel('Preset name').fill(`core ${stamp}`);
     await page.getByLabel('Voltage').fill('1.2');
     await page.getByLabel('Current limit').fill('1.0');
     await page.getByRole('button', { name: 'Add settings' }).click();
+    await expect(page.getByTestId('preset-dialog')).toBeHidden();
     await expect(page.getByTestId('presets-panel')).toContainText(`core ${stamp}`);
 
     // 2. A profile binding it to a channel.
     await page.getByTestId('nav-profiles').click();
     await page.getByTestId('new-profile').click();
+    await expect(page.getByTestId('profile-dialog')).toBeVisible();
     await page.getByLabel('Profile name').fill(`Board ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
     await page.getByLabel('Rail 1 dwell').fill('40');
     await page.getByRole('button', { name: 'Create profile' }).click();
+    await expect(page.getByTestId('profile-dialog')).toBeHidden();
 
     // 3. It is listed, and applying it works.
     const card = page.locator('[data-testid^="profile-"]', {
@@ -291,6 +296,7 @@ test.describe('authoring', () => {
 
     // psu1/CH3 is a 5 V channel in the simulated bench.
     await page.getByTestId('nav-presets').click();
+    await page.getByTestId('new-preset').click();
     await page.getByLabel('Preset name').fill(`too much ${stamp}`);
     await page.getByLabel('Voltage').fill('12');
     await page.getByLabel('Current limit').fill('1.0');
@@ -332,7 +338,7 @@ test.describe('authoring', () => {
     // row names the profile depending on it and the control is unavailable.
     const row = page.getByTestId(`preset-${presetId}`);
     await expect(row).toContainText(`Depends ${stamp}`);
-    await expect(row.getByRole('button', { name: 'Delete' })).toBeDisabled();
+    await expect(row.getByRole('button', { name: `Delete in use ${stamp}` })).toBeDisabled();
   });
 
   test('the health view reports a faulted supply', async ({ page }) => {
@@ -456,4 +462,56 @@ test('a live rail and the selected section share one accent', async ({ page }) =
   expect(indicator).toBe(navIcon);
 
   await segment(card, 'Off').click();
+});
+
+test.describe('lists', () => {
+  test('profiles can be searched by the hardware they name', async ({ page }) => {
+    const stamp = Date.now();
+    const mk = async (name: string, slot: string) => {
+      const preset = await page.request.post('/api/presets', {
+        data: {
+          name: `rail-${stamp}-${name}`, volt: 1, curr_limit: 1,
+          ovp_level: 2, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+        },
+      });
+      await page.request.post('/api/profiles', {
+        data: {
+          name: `${name} ${stamp}`, description: '',
+          bindings: [{
+            slot, channel: 'CH1', preset_id: (await preset.json()).id,
+            sequence_order: 1, delay_ms: 0, output_on: true,
+          }],
+        },
+      });
+    };
+    await mk('Alpha', 'psu1');
+    await mk('Beta', 'psu3');
+
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+    const profile = (name: string) =>
+      page.getByRole('heading', { name: `${name} ${stamp}`, exact: true });
+    await expect(profile('Alpha')).toBeVisible();
+
+    // Searching the slot finds the profile that uses it — how you look when you
+    // remember the hardware but not the name.
+    await page.getByLabel('Search profiles').fill('psu3');
+    await expect(profile('Beta')).toBeVisible();
+    await expect(profile('Alpha')).toHaveCount(0);
+
+    await page.getByLabel('Search profiles').fill('nothing-matches-this');
+    await expect(page.getByText('No profile matches')).toBeVisible();
+  });
+
+  test('the action icons carry accessible names', async ({ page }) => {
+    // Icon-only controls have no visible text to fall back on, so the label is
+    // the only thing a screen reader or a hover has to go on.
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+    await expect(page.getByTestId('new-profile')).toHaveAttribute(
+      'aria-label',
+      'New profile',
+    );
+    await expect(page.getByTestId('new-profile')).toHaveAttribute('title', 'New profile');
+  });
 });

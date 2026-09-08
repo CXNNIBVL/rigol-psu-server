@@ -8,6 +8,7 @@
     type NewBinding,
   } from '../api';
   import { channelChoices, exceedsLimits, findChannel } from '../bench-info';
+  import ActionIcon from './ActionIcon.svelte';
   import type { ChannelPreset, DeviceProfile, DeviceView } from '../types';
 
   let {
@@ -169,14 +170,7 @@
   }
 </script>
 
-<form
-  class="card preset-outlined-surface-200-800 p-4 space-y-4"
-  onsubmit={submit}
-  novalidate
-  data-testid="profile-editor"
->
-  <h3 class="h4">{profile ? `Edit ${profile.name}` : 'New profile'}</h3>
-
+<form class="space-y-4" onsubmit={submit} novalidate data-testid="profile-editor">
   <div class="flex flex-wrap gap-4">
     <label class="label">
       <span class="label-text">Name</span>
@@ -222,10 +216,42 @@
     {/if}
 
     {#each bindings as binding, index (index)}
-      <div class="space-y-1" data-testid="binding-{index}">
-        <div class="flex flex-wrap gap-2 items-end">
-          <span class="reading text-xs opacity-50 w-4 pb-2 tabular-nums">{index + 1}</span>
+      <div
+        class="rounded border border-surface-200-800 p-3 space-y-2"
+        data-testid="binding-{index}"
+      >
+        <!-- The step is titled rather than numbered in the margin: a bare digit
+             beside a wrapping row of fields ended up orphaned on its own line. -->
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-semibold opacity-70">Rail {index + 1}</span>
+          <div class="flex gap-1">
+            <button
+              class="btn-icon btn-icon-sm opacity-70 hover:opacity-100"
+              type="button"
+              aria-label="Move rail {index + 1} earlier"
+              disabled={index === 0}
+              onclick={() => move(index, -1)}
+            >
+              ↑
+            </button>
+            <button
+              class="btn-icon btn-icon-sm opacity-70 hover:opacity-100"
+              type="button"
+              aria-label="Move rail {index + 1} later"
+              disabled={index === bindings.length - 1}
+              onclick={() => move(index, 1)}
+            >
+              ↓
+            </button>
+            <ActionIcon
+              action="delete"
+              label="Remove rail {index + 1}"
+              onclick={() => removeBinding(index)}
+            />
+          </div>
+        </div>
 
+        <div class="flex flex-wrap gap-2 items-end">
           <label class="label grow min-w-56">
             <span class="label-text text-xs">Channel</span>
             <select
@@ -289,35 +315,6 @@
             />
             <span>Energise</span>
           </label>
-
-          <div class="flex gap-1 pb-1">
-            <button
-              class="btn btn-sm preset-tonal"
-              type="button"
-              aria-label="Move rail {index + 1} earlier"
-              disabled={index === 0}
-              onclick={() => move(index, -1)}
-            >
-              ↑
-            </button>
-            <button
-              class="btn btn-sm preset-tonal"
-              type="button"
-              aria-label="Move rail {index + 1} later"
-              disabled={index === bindings.length - 1}
-              onclick={() => move(index, 1)}
-            >
-              ↓
-            </button>
-            <button
-              class="btn btn-sm hover:preset-tonal-error"
-              type="button"
-              aria-label="Remove rail {index + 1}"
-              onclick={() => removeBinding(index)}
-            >
-              Remove
-            </button>
-          </div>
         </div>
 
         {#if newPresetFor === index}

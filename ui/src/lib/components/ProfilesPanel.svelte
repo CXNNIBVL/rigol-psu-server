@@ -3,6 +3,9 @@
   import type { DeviceProfile, DeviceView } from '../types';
   import ProfileCard from './ProfileCard.svelte';
   import ProfileEditor from './ProfileEditor.svelte';
+  import ActionIcon from './ActionIcon.svelte';
+  import FormDialog from './FormDialog.svelte';
+  import SearchBox from './SearchBox.svelte';
 
   let { devices }: { devices: DeviceView[] } = $props();
 
@@ -13,6 +16,25 @@
   // undefined = not editing; null = creating; a profile = editing that one.
   let editing = $state<DeviceProfile | null | undefined>(undefined);
   let confirming = $state<DeviceProfile | null>(null);
+  let query = $state('');
+
+  // Matches the profile's own words and the rails it names, so "psu2" or "3v3"
+  // finds the devices that use them — which is how you look for a profile when
+  // you remember the hardware but not the name.
+  const shown = $derived(
+    profiles.filter((profile) => {
+      const needle = query.trim().toLowerCase();
+      if (!needle) return true;
+      const haystack = [
+        profile.name,
+        profile.description,
+        ...profile.bindings.flatMap((b) => [b.slot, b.channel, b.preset.name]),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(needle);
+    }),
+  );
 
   async function refresh() {
     try {
@@ -53,41 +75,55 @@
         A profile is a device and the rails it needs, in the order they come up.
       </p>
     </div>
-    {#if editing === undefined}
-      <button
-        class="btn preset-filled"
-        type="button"
+    <div class="flex items-center gap-3">
+      <SearchBox
+        bind:value={query}
+        label="Search profiles"
+        count={shown.length}
+        total={profiles.length}
+      />
+      <ActionIcon
+        action="new"
+        label="New profile"
+        testid="new-profile"
         onclick={() => (editing = null)}
-        data-testid="new-profile"
-      >
-        New profile
-      </button>
-    {/if}
+      />
+    </div>
   </div>
 
   {#if error}
     <p class="preset-tonal-error p-3 rounded text-sm" role="alert">{error}</p>
   {/if}
 
-  {#if editing !== undefined}
-    <!-- Keyed so switching between profiles reseeds the form rather than
-         leaving stale values from the last one. -->
-    {#key editing?.id ?? 'new'}
-      <ProfileEditor {devices} profile={editing} ondone={done} />
-    {/key}
-  {/if}
+  <!-- Keyed so switching between profiles reseeds the form rather than leaving
+       stale values from the last one. -->
+  {#key editing?.id ?? 'new'}
+    <FormDialog
+      open={editing !== undefined}
+      title={editing ? `Edit ${editing.name}` : 'New profile'}
+      onclose={() => (editing = undefined)}
+      testid="profile-dialog"
+    >
+      <ProfileEditor {devices} profile={editing ?? null} ondone={done} />
+    </FormDialog>
+  {/key}
 
-  {#if loaded && profiles.length === 0 && editing === undefined}
+  {#if loaded && profiles.length === 0}
     <p class="opacity-60 text-sm">
       No profiles yet. Create one to stage a device's rails together and bring
       them up in order.
     </p>
+  {:else if loaded && shown.length === 0}
+    <p class="opacity-60 text-sm">
+      No profile matches "{query}".
+    </p>
   {/if}
 
   <!-- A list rather than a grid: profiles vary in length, and forcing them into
-       columns produced rows of wildly different heights. -->
-  <div class="space-y-3">
-    {#each profiles as profile (profile.id)}
+       columns produced rows of wildly different heights. Scrolls within itself
+       so the search box stays reachable however many there are. -->
+  <div class="space-y-3 max-h-[calc(100vh-16rem)] overflow-y-auto pr-1">
+    {#each shown as profile (profile.id)}
       <ProfileCard
         {profile}
         {devices}

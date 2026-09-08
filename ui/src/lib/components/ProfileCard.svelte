@@ -3,6 +3,7 @@
   import { ApiFailure, applyProfile, powerOffProfile, powerOnProfile } from '../api';
   import { isStaged, profileState, stateLabel } from '../profile-state';
   import { trim } from '../format';
+  import ActionIcon from './ActionIcon.svelte';
 
   let {
     profile,
@@ -133,16 +134,18 @@
 
     <span class="grow"></span>
     <!-- Inside the card, because they act on it. -->
-    <button class="btn btn-sm preset-tonal" type="button" onclick={() => onedit?.()}>
-      Edit
-    </button>
-    <button
-      class="btn btn-sm hover:preset-tonal-error"
-      type="button"
+    <ActionIcon
+      action="edit"
+      label="Edit {profile.name}"
+      testid="edit-profile-{profile.id}"
+      onclick={() => onedit?.()}
+    />
+    <ActionIcon
+      action="delete"
+      label="Delete {profile.name}"
+      testid="delete-profile-{profile.id}"
       onclick={() => ondelete?.()}
-    >
-      Delete
-    </button>
+    />
   </div>
 
   {#if error}

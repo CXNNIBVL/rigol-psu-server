@@ -496,6 +496,41 @@ items to be the same height.
 
 ---
 
+## 13. Later requests, implemented
+
+Added after the review and built alongside it.
+
+**Create and edit happen in a dialog.** Both editors previously pushed the list
+down the page, so you lost sight of what you were editing against. They are now
+modals built on the **native `<dialog>` element** rather than Skeleton's headless
+Dialog anatomy — the anatomy ships no styles at all (there is no `dialog.css` in
+`skeleton-common`, unlike every other component), while the base package styles
+`<dialog>` directly. The platform then supplies focus trapping, Escape-to-close
+and an inert background rather than leaving them to be reimplemented.
+
+**Lists are searchable and scroll within themselves.** Profile search matches the
+slot, channel and settings names as well as the profile's own words, so "psu3"
+or "3v3" finds the devices that use them — which is how you look for a profile
+when you remember the hardware but not the name. Each list scrolls in its own
+region so the search box stays reachable however many there are.
+
+**Create, edit and delete are icons**: plus, pencil, bin, colouring green, amber
+and red on hover and focus. Two constraints came with that:
+
+- They are **colourless at rest**. Three lit buttons per row would make the
+  actions louder than the content they act on, and §6's point about a permanently
+  red bin dominating the page applies to a red bin icon just as much.
+- An accessible name is **required, not optional**. There is no visible text to
+  fall back on, so every one carries an `aria-label` that is also its tooltip,
+  and a browser test asserts it.
+
+One note on the palette: green now also appears as the hover state for "new",
+which slightly overloads the accent that otherwise means *energised*. It reads
+fine because it is a transient hover on a control that touches no hardware, but
+it is worth knowing the accent is doing one more job than §2 assigned it.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the
