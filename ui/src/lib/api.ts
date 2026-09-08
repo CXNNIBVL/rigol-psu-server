@@ -1,6 +1,13 @@
 /** Thin wrapper over the control endpoints. */
 
-import type { ApiError, ChannelId, Protection, Setpoint } from './types';
+import type {
+  ApiError,
+  ChannelId,
+  ChannelPreset,
+  DeviceProfile,
+  Protection,
+  Setpoint,
+} from './types';
 
 export class ApiFailure extends Error {
   constructor(readonly detail: ApiError) {
@@ -9,13 +16,16 @@ export class ApiFailure extends Error {
   }
 }
 
-async function send(url: string, method: string, body: unknown): Promise<void> {
+async function request<T>(url: string, method: string, body?: unknown): Promise<T> {
   const response = await fetch(url, {
     method,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: body === undefined ? {} : { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (response.ok) return;
+  if (response.ok) {
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as T;
+  }
 
   // The server always sends a typed error body; fall back only if something
   // else answered.
@@ -28,6 +38,9 @@ async function send(url: string, method: string, body: unknown): Promise<void> {
   throw new ApiFailure(detail);
 }
 
+const send = (url: string, method: string, body: unknown) =>
+  request<void>(url, method, body);
+
 export const setSetpoint = (slot: string, channel: ChannelId, sp: Setpoint) =>
   send(`/api/devices/${slot}/channels/${channel}/setpoint`, 'PUT', sp);
 
@@ -36,3 +49,32 @@ export const setProtection = (slot: string, channel: ChannelId, p: Protection) =
 
 export const setOutput = (slot: string, channel: ChannelId, on: boolean) =>
   send(`/api/devices/${slot}/channels/${channel}/output`, 'POST', { on });
+
+// -- presets and profiles ---------------------------------------------------
+
+export const listPresets = () => request<ChannelPreset[]>('/api/presets', 'GET');
+
+export const createPreset = (preset: Omit<ChannelPreset, 'id'>) =>
+  request<ChannelPreset>('/api/presets', 'POST', preset);
+
+export const deletePreset = (id: number) =>
+  request<void>(`/api/presets/${id}`, 'DELETE');
+
+export const listProfiles = () => request<DeviceProfile[]>('/api/profiles', 'GET');
+
+export const deleteProfile = (id: number) =>
+  request<void>(`/api/profiles/${id}`, 'DELETE');
+
+/** Stages setpoints. Never energises — see `powerOnProfile`. */
+export const applyProfile = (id: number, force = false) =>
+  request<DeviceProfile>(
+    `/api/profiles/${id}/apply${force ? '?force=true' : ''}`,
+    'POST',
+  );
+
+/** The only call that puts energy into a device. */
+export const powerOnProfile = (id: number) =>
+  request<DeviceProfile>(`/api/profiles/${id}/power-on`, 'POST');
+
+export const powerOffProfile = (id: number) =>
+  request<DeviceProfile>(`/api/profiles/${id}/power-off`, 'POST');

@@ -636,5 +636,17 @@ quietly break.
    only becomes meaningful once profiles exist (§9.2), and the OpenAPI spec.
 5. **M5 — Presets and profiles.** SQLite, migrations, CRUD, staged apply, sequenced
    power-on, profiles UI.
+
+   *Done.* Presets and profiles live in SQLite with migrations tracked in
+   `PRAGMA user_version`. A preset that a profile depends on cannot be deleted
+   (`ON DELETE RESTRICT`), because cascading would silently gut the profile.
+   `force` is implemented and bounded to the single rule §10 gives it; the API
+   reports `forceable` on a refusal so the UI offers the override only where it
+   could actually apply.
+
+   Still outstanding from M4: the **OpenAPI spec**. Generating it from the
+   response types means adding `utoipa` to `psu-core`, which puts a web
+   dependency in the domain crate — worth deciding deliberately rather than as a
+   side effect.
 6. **M6 — Deployment.** udev rule, systemd unit, front panel lock lifecycle,
    cross-compile and install on the target. Resolve the §11 risks on real hardware.

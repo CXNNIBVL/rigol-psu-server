@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use clap::Parser;
 use dp832::{Transport, UsbTmcTransport};
-use psu_core::{Config, Supervisor};
+use psu_core::{Config, Store, Supervisor};
 use tracing_subscriber::EnvFilter;
 
 use server::routes::{self, AppState};
@@ -38,6 +38,14 @@ struct Args {
     /// Override the configured listen address.
     #[arg(long, value_name = "ADDR")]
     bind: Option<SocketAddr>,
+
+    /// Where presets and profiles are stored.
+    #[arg(
+        long,
+        value_name = "PATH",
+        default_value = "/var/lib/rigol-psu/data.db"
+    )]
+    database: PathBuf,
 
     /// Run against N simulated supplies instead of hardware. Development only.
     #[cfg(feature = "simulation")]
@@ -73,11 +81,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.bind = bind;
     }
 
+    // Simulated runs keep their data in memory: a throwaway bench should not
+    // leave presets behind, or pick up someone else's.
+    let store = Arc::new(match simulated {
+        Some(_) => {
+            tracing::warn!("presets and profiles are in memory and will not be kept");
+            Store::in_memory()?
+        }
+        None => {
+            if let Some(parent) = args.database.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            Store::open(&args.database)?
+        }
+    });
+
     let (supervisor, sim_registry) = start_supervisor(&config, simulated);
     let supervisor = Arc::new(supervisor);
 
     let state = AppState {
         supervisor: Arc::clone(&supervisor),
+        store: Arc::clone(&store),
         #[cfg(feature = "simulation")]
         simulation: sim_registry,
     };

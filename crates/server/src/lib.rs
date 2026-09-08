@@ -5,6 +5,7 @@
 
 pub mod assets;
 pub mod error;
+pub mod profiles;
 pub mod routes;
 
 #[cfg(feature = "simulation")]

@@ -17,6 +17,7 @@ use crate::error::ApiError;
 #[derive(Clone)]
 pub struct AppState {
     pub supervisor: Arc<Supervisor>,
+    pub store: Arc<psu_core::Store>,
     #[cfg(feature = "simulation")]
     pub simulation: Option<Arc<crate::simulation::SimRegistry>>,
 }
@@ -37,7 +38,8 @@ pub fn router(state: AppState) -> Router {
             "/devices/{slot}/channels/{channel}/output",
             post(post_output),
         )
-        .route("/stream", get(stream));
+        .route("/stream", get(stream))
+        .merge(crate::profiles::routes());
 
     #[cfg(feature = "simulation")]
     let api = api.merge(crate::simulation::routes());

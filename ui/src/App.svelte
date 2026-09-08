@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import { Bench } from './lib/bench.svelte';
   import DeviceCard from './lib/components/DeviceCard.svelte';
+  import ProfilesPanel from './lib/components/ProfilesPanel.svelte';
 
   const bench = new Bench();
+  let tab = $state<'bench' | 'profiles'>('bench');
 
   // `onMount` rather than `$effect`: the connection must be opened exactly once
   // for the life of the component. An effect would re-run if anything it
@@ -27,7 +29,26 @@
     {/if}
   </header>
 
-  {#if bench.snapshot}
+  <nav class="flex gap-2" aria-label="Sections">
+    <button
+      class="btn {tab === 'bench' ? 'preset-filled' : 'preset-tonal'}"
+      type="button"
+      onclick={() => (tab = 'bench')}
+    >
+      Bench
+    </button>
+    <button
+      class="btn {tab === 'profiles' ? 'preset-filled' : 'preset-tonal'}"
+      type="button"
+      onclick={() => (tab = 'profiles')}
+    >
+      Profiles
+    </button>
+  </nav>
+
+  {#if tab === 'profiles'}
+    <ProfilesPanel />
+  {:else if bench.snapshot}
     <div class="space-y-8">
       {#each bench.snapshot.devices as device (device.slot)}
         <DeviceCard {device} />

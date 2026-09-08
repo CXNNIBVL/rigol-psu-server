@@ -84,4 +84,40 @@ export interface ApiError {
   slot?: string;
   channel?: string;
   violation?: ClampViolation;
+  /**
+   * Whether re-sending with `force` could succeed. The UI offers the override
+   * only when this is set, rather than inviting a retry that will always be
+   * refused — `force` covers exactly one rule, never a clamp or a quarantine.
+   */
+  forceable?: boolean;
+}
+
+export interface ChannelPreset {
+  id: number;
+  name: string;
+  volt: number;
+  curr_limit: number;
+  ovp_level: number;
+  ovp_enabled: boolean;
+  ocp_level: number;
+  ocp_enabled: boolean;
+  /** Intended output state. An apply records it; only power-on acts on it. */
+  output_on: boolean;
+}
+
+export interface ProfileBinding {
+  id: number;
+  slot: string;
+  channel: ChannelId;
+  preset: ChannelPreset;
+  sequence_order: number;
+  delay_ms: number;
+}
+
+export interface DeviceProfile {
+  id: number;
+  name: string;
+  description: string;
+  /** In power-up order. */
+  bindings: ProfileBinding[];
 }

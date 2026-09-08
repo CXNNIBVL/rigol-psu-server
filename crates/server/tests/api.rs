@@ -68,6 +68,7 @@ fn harness() -> Harness {
     // looks like at runtime, and the fault routes must refuse to work.
     let state = AppState {
         supervisor: Arc::clone(&supervisor),
+        store: Arc::new(psu_core::Store::in_memory().unwrap()),
         #[cfg(feature = "simulation")]
         simulation: None,
     };

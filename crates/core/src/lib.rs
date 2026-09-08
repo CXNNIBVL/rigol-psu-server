@@ -10,10 +10,17 @@ pub mod actor;
 pub mod clamp;
 pub mod config;
 pub mod model;
+pub mod profile;
+pub mod store;
 pub mod supervisor;
 
 pub use actor::{CommandError, SupplyHandle};
 pub use clamp::{Clamp, ClampViolation};
 pub use config::{ChannelConfig, Config, ConfigError, PollConfig, SupplyConfig};
 pub use model::{ChannelView, DeviceStatus, DeviceView, Limits, OfflineCode, SystemState};
+pub use profile::{apply, power_off, power_on, ApplyError};
+pub use store::{
+    ChannelPreset, DeviceProfile, NewChannelPreset, NewDeviceProfile, NewProfileBinding,
+    ProfileBinding, Store, StoreError,
+};
 pub use supervisor::Supervisor;

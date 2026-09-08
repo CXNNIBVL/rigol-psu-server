@@ -24,6 +24,11 @@ pub struct ApiError {
     /// the UI can render both numbers without parsing the message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub violation: Option<ClampViolation>,
+    /// Whether re-sending with `force` could succeed. Lets the UI offer the
+    /// override only where it would actually apply, instead of inviting the
+    /// user to retry something that will always be refused.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub forceable: bool,
     #[serde(skip)]
     pub status: StatusCode,
 }
@@ -36,6 +41,7 @@ impl ApiError {
             slot: None,
             channel: None,
             violation: None,
+            forceable: false,
             status,
         }
     }

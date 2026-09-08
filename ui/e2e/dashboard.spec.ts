@@ -120,3 +120,93 @@ test('a supply recovers on its own once the fault clears', async ({ page }) => {
     page.getByTestId('channel-psu2-CH1').getByTestId('volt'),
   ).not.toContainText('Unknown');
 });
+
+test.describe('profiles', () => {
+  /** Build a profile through the API, so the test drives the real flow. */
+  async function seedProfile(page: import('@playwright/test').Page) {
+    const core = await page.request.post('/api/presets', {
+      data: {
+        name: `core ${Date.now()}`,
+        volt: 1.2,
+        curr_limit: 1.0,
+        ovp_level: 1.5,
+        ovp_enabled: true,
+        ocp_level: 1.2,
+        ocp_enabled: true,
+        output_on: true,
+      },
+    });
+    const coreId = (await core.json()).id;
+
+    const profile = await page.request.post('/api/profiles', {
+      data: {
+        name: `Mainboard ${Date.now()}`,
+        description: 'seeded by the e2e suite',
+        bindings: [
+          { slot: 'psu1', channel: 'CH1', preset_id: coreId, sequence_order: 1, delay_ms: 0 },
+        ],
+      },
+    });
+    return (await profile.json()).id as number;
+  }
+
+  test('applying stages setpoints without energising, power-on commits', async ({
+    page,
+  }) => {
+    const id = await seedProfile(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Profiles' }).click();
+
+    const card = page.getByTestId(`profile-${id}`);
+    await expect(card).toBeVisible();
+
+    // Power on is unavailable until setpoints have been staged.
+    await expect(card.getByRole('button', { name: 'Power on' })).toBeDisabled();
+    await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    await expect(card.getByRole('button', { name: 'Power on' })).toBeEnabled();
+
+    // Staged, but nothing is live yet.
+    const state = await (await page.request.get('/api/state')).json();
+    const ch1 = state.devices.find((d: { slot: string }) => d.slot === 'psu1').channels[0];
+    expect(ch1.setpoint.volt).toBeCloseTo(1.2, 3);
+    expect(ch1.output_on).toBe(false);
+
+    await card.getByRole('button', { name: 'Power on' }).click();
+    await expect
+      .poll(async () => {
+        const s = await (await page.request.get('/api/state')).json();
+        return s.devices.find((d: { slot: string }) => d.slot === 'psu1').channels[0].output_on;
+      })
+      .toBe(true);
+
+    await card.getByRole('button', { name: 'Power off' }).click();
+  });
+
+  test('re-applying over a live rail is refused, and force is offered', async ({
+    page,
+  }) => {
+    const id = await seedProfile(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Profiles' }).click();
+
+    const card = page.getByTestId(`profile-${id}`);
+    await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    await card.getByRole('button', { name: 'Power on' }).click();
+
+    await expect
+      .poll(async () => {
+        const s = await (await page.request.get('/api/state')).json();
+        return s.devices.find((d: { slot: string }) => d.slot === 'psu1').channels[0].output_on;
+      })
+      .toBe(true);
+
+    await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    await expect(card.getByTestId('profile-error')).toContainText('currently on');
+    await expect(card.getByTestId('force-apply')).toBeVisible();
+
+    await card.getByTestId('force-apply').click();
+    await expect(card.getByTestId('profile-error')).toHaveCount(0);
+
+    await card.getByRole('button', { name: 'Power off' }).click();
+  });
+});

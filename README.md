@@ -13,8 +13,8 @@ alternatives that were rejected, is in **[docs/PLAN.md](docs/PLAN.md)**.
 | M1 — `dp832` driver crate (SCPI, USBTMC, simulator) | done |
 | M2 — server skeleton (config, actors, polling, API, WebSocket) | done |
 | M3 — Svelte dashboard | done |
-| M4 — safety hardening | largely landed with M2 |
-| M5 — presets and profiles (SQLite) | not started |
+| M4 — safety hardening | landed with M2 and M5; OpenAPI spec outstanding |
+| M5 — presets and profiles (SQLite) | done |
 | M6 — deployment on the lab PC | files in `deploy/`, not yet installed |
 
 ## Running without hardware
@@ -36,6 +36,23 @@ just dev          # three simulated supplies on 127.0.0.1:8080
 
 The per-channel limits in `config.toml` cannot be raised through the API and are
 not editable from the UI. The server refuses to start without them.
+
+Presets and profiles are stored in SQLite at `--database`
+(default `/var/lib/rigol-psu/data.db`). Simulated runs keep theirs in memory.
+
+## Applying a profile
+
+Three separate calls, deliberately:
+
+| Call | Effect |
+|---|---|
+| `POST /api/profiles/{id}/apply` | Validates and stages setpoints. **Never energises.** |
+| `POST /api/profiles/{id}/power-on` | Energises the rails the profile marks on, in sequence. |
+| `POST /api/profiles/{id}/power-off` | Switches every rail off. Always permitted. |
+
+`?force=true` on apply overrides exactly one rule — "every target channel must
+be off". It does not override a clamp, a quarantine, or the refusal to apply a
+profile that spans an unreachable supply.
 
 ## Development
 
