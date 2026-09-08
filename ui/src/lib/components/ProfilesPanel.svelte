@@ -132,6 +132,7 @@
       <ProfileCard
         {profile}
         {devices}
+        siblings={profiles}
         onchange={refresh}
         onedit={() => (editing = profile)}
         ondelete={() => (confirming = profile)}

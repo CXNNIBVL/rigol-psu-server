@@ -1,19 +1,28 @@
 <script lang="ts">
   import type { DeviceProfile, DeviceView } from '../types';
   import { ApiFailure, applyProfile, powerOffProfile, powerOnProfile } from '../api';
-  import { isStaged, profileState, stateLabel } from '../profile-state';
+  import {
+    indistinguishableFrom,
+    isStaged,
+    profileState,
+    stateDetail,
+    stateLabel,
+  } from '../profile-state';
   import { trim } from '../format';
   import ActionIcon from './ActionIcon.svelte';
 
   let {
     profile,
     devices,
+    siblings = [],
     onchange,
     onedit,
     ondelete,
   }: {
     profile: DeviceProfile;
     devices: DeviceView[];
+    /** All profiles, so this one can tell whether it is distinguishable. */
+    siblings?: DeviceProfile[];
     onchange?: () => void;
     onedit?: () => void;
     ondelete?: () => void;
@@ -25,13 +34,23 @@
 
   const condition = $derived(profileState(profile, devices));
   const staged = $derived(isStaged(profile, devices));
+  const detail = $derived(stateDetail(condition));
+
+  // Profiles describing the same rails at the same values are the same input to
+  // profileState, so they all read alike whichever device is actually plugged
+  // in. Saying so beats letting this one imply it is the one that is running.
+  const twins = $derived(indistinguishableFrom(profile, siblings));
+  const ambiguous = $derived(
+    twins.length > 0 && (condition === 'live' || condition === 'staged'),
+  );
 
   const TONE: Record<string, string> = {
     live: 'preset-tonal-success',
+    'live-altered': 'preset-tonal-warning',
     'partly-live': 'preset-tonal-warning',
     staged: 'preset-tonal',
     idle: 'preset-tonal-surface',
-    unavailable: 'preset-tonal-warning',
+    'not-visible': 'preset-tonal-warning',
   };
 
   async function run(action: () => Promise<unknown>) {
@@ -70,6 +89,20 @@
       {stateLabel(condition)}
     </span>
   </header>
+
+  {#if detail}
+    <p class="text-xs preset-tonal-warning p-2 rounded" data-testid="profile-detail">
+      {detail}
+    </p>
+  {/if}
+
+  {#if ambiguous}
+    <p class="text-xs preset-tonal-surface p-2 rounded" data-testid="profile-ambiguous">
+      These rails are described identically by
+      {twins.map((t) => t.name).join(', ')} — the bench cannot tell which device
+      is connected.
+    </p>
+  {/if}
 
   <!--
     A power-up sequence, drawn as one. Steps are numbered because this genuinely

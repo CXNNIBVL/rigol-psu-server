@@ -131,7 +131,9 @@ describe('ProfileCard', () => {
     expect(screen.getByTestId('profile-status')).toHaveTextContent('Staged');
   });
 
-  it('reports a powered device', () => {
+  it('reports live rails, not a powered device', () => {
+    // The bench sees rails. Nothing on the wire says which board is plugged
+    // into them, so the label does not claim one.
     const live = [
       device({
         slot: 'psu1',
@@ -141,9 +143,47 @@ describe('ProfileCard', () => {
         ],
       }),
     ];
-    // CH2 is staged-only in this profile, so CH1 alone being live is "powered".
+    // CH2 is staged-only in this profile, so CH1 alone being on is fully live.
     render(ProfileCard, { profile: profile(), devices: live });
-    expect(screen.getByTestId('profile-status')).toHaveTextContent('Powered');
+    expect(screen.getByTestId('profile-status')).toHaveTextContent('Rails live');
+  });
+
+  it('says so when the rails are on but not at this profile\'s values', () => {
+    // The switches alone used to be enough: a rail turned up by hand still read
+    // as fully applied, which is the one case where being wrong costs hardware.
+    const altered = [
+      device({
+        slot: 'psu1',
+        channels: [
+          channel({ id: 'CH1', output_on: true, setpoint: { volt: 12, curr_limit: 1 } }),
+          channel({ id: 'CH2', output_on: false, setpoint: { volt: 3.3, curr_limit: 1 } }),
+        ],
+      }),
+    ];
+    render(ProfileCard, { profile: profile(), devices: altered });
+    expect(screen.getByTestId('profile-status')).toHaveTextContent('Live, values differ');
+    expect(screen.getByTestId('profile-detail')).toHaveTextContent(/something changed them/i);
+  });
+
+  it('names the profiles it cannot be told apart from', () => {
+    // Two profiles describing the same rails at the same values are the same
+    // input to the bench, so both read alike whichever board is connected.
+    const twin = { ...profile(), id: 99, name: 'Mainboard rev D' };
+    render(ProfileCard, {
+      profile: profile(),
+      devices: stagedBench(),
+      siblings: [profile(), twin],
+    });
+    expect(screen.getByTestId('profile-ambiguous')).toHaveTextContent('Mainboard rev D');
+  });
+
+  it('says nothing about ambiguity when the profile is unique', () => {
+    render(ProfileCard, {
+      profile: profile(),
+      devices: stagedBench(),
+      siblings: [profile()],
+    });
+    expect(screen.queryByTestId('profile-ambiguous')).not.toBeInTheDocument();
   });
 
   it('power off is always available, staged or not', () => {

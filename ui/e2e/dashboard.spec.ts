@@ -270,9 +270,9 @@ test.describe('authoring', () => {
     await expect(page.getByTestId('profile-dialog')).toBeHidden();
 
     // 3. It is listed, and applying it works.
-    const card = page.locator('[data-testid^="profile-"]', {
-      hasText: `Board ${stamp}`,
-    });
+    const card = page
+      .locator('article[data-testid^="profile-"]')
+      .filter({ has: page.getByRole('heading', { name: `Board ${stamp}`, exact: true }) });
     await expect(card).toBeVisible();
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
     // Power on becomes available because the bench now holds the settings, not
@@ -599,5 +599,72 @@ test.describe('lists', () => {
     await expect(
       page.getByTestId('binding-1').getByRole('radio', { name: 'Simulated supply 1 CH1' }),
     ).toBeDisabled();
+  });
+
+  test('two profiles describing the same rails say so', async ({ page }) => {
+    // The bench sees rails, not devices. Identical descriptions are the same
+    // input, so neither may imply it is the one that is running.
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `twin ${stamp}`, volt: 1.2, curr_limit: 1,
+        ovp_level: 2, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    const presetId = (await preset.json()).id;
+    const binding = {
+      slot: 'psu1', channel: 'CH1', preset_id: presetId,
+      sequence_order: 1, delay_ms: 0, output_on: true,
+    };
+    for (const name of [`Rev C ${stamp}`, `Rev D ${stamp}`]) {
+      await page.request.post('/api/profiles', {
+        data: { name, description: '', bindings: [binding] },
+      });
+    }
+
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+    const card = page
+      .locator('article[data-testid^="profile-"]')
+      .filter({ has: page.getByRole('heading', { name: `Rev C ${stamp}`, exact: true }) });
+
+    // Stage it, so both profiles' rails genuinely match.
+    await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    await expect(card.getByTestId('profile-status')).toHaveText('Staged');
+    await expect(card.getByTestId('profile-ambiguous')).toContainText(`Rev D ${stamp}`);
+  });
+
+  test('rails on at the wrong values do not read as applied', async ({ page }) => {
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `low ${stamp}`, volt: 1.2, curr_limit: 1,
+        ovp_level: 2, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    const presetId = (await preset.json()).id;
+    const created = await page.request.post('/api/profiles', {
+      data: {
+        name: `Altered ${stamp}`, description: '',
+        bindings: [{
+          slot: 'psu2', channel: 'CH1', preset_id: presetId,
+          sequence_order: 1, delay_ms: 0, output_on: true,
+        }],
+      },
+    });
+    const profileId = (await created.json()).id;
+
+    // Someone sets the rail by hand, well above what the profile specifies.
+    await page.request.put('/api/devices/psu2/channels/CH1/setpoint', {
+      data: { volt: 12, curr_limit: 2 },
+    });
+    await page.request.post('/api/devices/psu2/channels/CH1/output', { data: { on: true } });
+
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+    const card = page.getByTestId(`profile-${profileId}`);
+    await expect(card.getByTestId('profile-status')).toHaveText('Live, values differ');
+
+    await page.request.post('/api/devices/psu2/channels/CH1/output', { data: { on: false } });
   });
 });

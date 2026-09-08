@@ -655,6 +655,43 @@ it; if it grows enough to need searching, that is a separate change.
 
 ---
 
+## 17. A profile card said more than the bench knows
+
+Two flaws in the same label, both found by asking what "Powered" actually meant.
+
+**It checked the switches but not the values.** `Powered` was true when every
+energising rail was on, without comparing setpoints — so a rail turned up to
+12 V by hand, on a profile specifying 1.2 V, read as fully applied. That is the
+one state where being wrong costs hardware, and it was the *loosest* of them:
+`Staged` already compared setpoints, so the safe state was stricter than the
+dangerous one. There is now a distinct **"Live, values differ"**.
+
+**It claimed a device was running, which the bench cannot see.** The
+instruments report rails. Nothing on the wire says which board is plugged into
+them, so two profiles describing the same channels at the same values are the
+same input and both read alike — power up rev C and rev D says "Powered" too.
+Partial overlap was worse: powering a profile that binds one rail made a profile
+binding that rail and another read "Partly powered", implying someone had got
+halfway through bringing it up.
+
+Two changes:
+
+- **The labels talk about rails**, because that is what is observed. "Rails
+  live", "Live, values differ", "Partly live", "Staged", "Not applied", "Not
+  visible".
+- **Indistinguishable profiles name each other.** When another profile describes
+  the same rails at the same values, both say so rather than letting either
+  imply it is the one that is running.
+
+What is deliberately *not* built: server-side attribution — recording which
+profile was last applied to each channel. It would answer "which one did I
+apply", but it is a *remembered* fact rather than an observed one, it goes stale
+the moment somebody turns a knob, and it still cannot say which board is
+physically connected. Worth doing only once that question is actually being
+asked at the bench.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the
