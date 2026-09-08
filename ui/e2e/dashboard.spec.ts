@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /** Put a simulated supply into a fault state through the gated test hook. */
 async function injectFault(
@@ -10,6 +10,21 @@ async function injectFault(
     data: { kind },
   });
   expect(response.ok()).toBeTruthy();
+}
+
+/**
+ * The clickable half of a segmented control.
+ *
+ * The `radio` role resolves to zag's visually-hidden input, which the label
+ * text sits on top of — so a click on the role is intercepted. Users click the
+ * label, and so does this. State assertions still use the role, since that is
+ * where `checked` and `disabled` live.
+ */
+function segment(card: Locator, name: 'On' | 'Off'): Locator {
+  // `:text-is` normalises whitespace; the label's raw textContent carries a
+  // trailing newline from the component's markup, so an anchored regex on it
+  // never matches.
+  return card.locator(`label[data-part="item"]:has(span:text-is("${name}"))`);
 }
 
 test.afterEach(async ({ page }) => {
@@ -76,10 +91,11 @@ test('switching a channel on and off changes how the card presents', async ({
   const card = page.getByTestId('channel-psu2-CH1');
   await expect(card).toHaveAttribute('data-state', 'off');
 
-  await card.getByRole('button', { name: 'On' }).click();
+  await segment(card, 'On').click();
   await expect(card).toHaveAttribute('data-state', 'live');
+  await expect(card.getByRole('radio', { name: 'On' })).toBeChecked();
 
-  await card.getByRole('button', { name: 'Off' }).click();
+  await segment(card, 'Off').click();
   await expect(card).toHaveAttribute('data-state', 'off');
 });
 
@@ -110,8 +126,11 @@ test('an offline supply explains itself and disables its controls', async ({ pag
   await expect(device.getByTestId('device-detail')).toContainText(/may still be live/i);
 
   const card = page.getByTestId('channel-psu3-CH1');
-  await expect(card.getByRole('button', { name: 'On' })).toBeDisabled();
-  await expect(card.getByRole('button', { name: 'Off' })).toBeDisabled();
+  await expect(card.getByRole('radio', { name: 'On' })).toBeDisabled();
+  await expect(card.getByRole('radio', { name: 'Off' })).toBeDisabled();
+  // Neither segment selected: we do not know which way the rail is set.
+  await expect(card.getByRole('radio', { name: 'On' })).not.toBeChecked();
+  await expect(card.getByRole('radio', { name: 'Off' })).not.toBeChecked();
 });
 
 test('a supply recovers on its own once the fault clears', async ({ page }) => {
@@ -161,7 +180,7 @@ test.describe('profiles', () => {
   }) => {
     const id = await seedProfile(page);
     await page.goto('/');
-    await page.getByRole('button', { name: 'Profiles' }).click();
+    await page.getByTestId('nav-profiles').click();
 
     const card = page.getByTestId(`profile-${id}`);
     await expect(card).toBeVisible();
@@ -193,7 +212,7 @@ test.describe('profiles', () => {
   }) => {
     const id = await seedProfile(page);
     await page.goto('/');
-    await page.getByRole('button', { name: 'Profiles' }).click();
+    await page.getByTestId('nav-profiles').click();
 
     const card = page.getByTestId(`profile-${id}`);
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
@@ -225,7 +244,7 @@ test.describe('authoring', () => {
     await page.goto('/');
 
     // 1. A preset.
-    await page.getByRole('button', { name: 'Presets' }).click();
+    await page.getByTestId('nav-presets').click();
     await page.getByLabel('Preset name').fill(`core ${stamp}`);
     await page.getByLabel('Voltage').fill('1.2');
     await page.getByLabel('Current limit').fill('1.0');
@@ -233,7 +252,7 @@ test.describe('authoring', () => {
     await expect(page.getByTestId('presets-panel')).toContainText(`core ${stamp}`);
 
     // 2. A profile binding it to a channel.
-    await page.getByRole('button', { name: 'Profiles' }).click();
+    await page.getByTestId('nav-profiles').click();
     await page.getByTestId('new-profile').click();
     await page.getByLabel('Profile name').fill(`Board ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
@@ -255,13 +274,13 @@ test.describe('authoring', () => {
     await page.goto('/');
 
     // psu1/CH3 is a 5 V channel in the simulated bench.
-    await page.getByRole('button', { name: 'Presets' }).click();
+    await page.getByTestId('nav-presets').click();
     await page.getByLabel('Preset name').fill(`too much ${stamp}`);
     await page.getByLabel('Voltage').fill('12');
     await page.getByLabel('Current limit').fill('1.0');
     await page.getByRole('button', { name: 'Create' }).click();
 
-    await page.getByRole('button', { name: 'Profiles' }).click();
+    await page.getByTestId('nav-profiles').click();
     await page.getByTestId('new-profile').click();
     await page.getByLabel('Profile name').fill(`Doomed ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
@@ -291,7 +310,7 @@ test.describe('authoring', () => {
     });
 
     await page.goto('/');
-    await page.getByRole('button', { name: 'Presets' }).click();
+    await page.getByTestId('nav-presets').click();
     await page.getByTestId(`preset-${presetId}`).getByRole('button', { name: 'Delete' }).click();
 
     await expect(page.getByTestId('preset-error')).toContainText('cannot be deleted');
@@ -300,7 +319,7 @@ test.describe('authoring', () => {
 
   test('the health view reports a faulted supply', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Health' }).click();
+    await page.getByTestId('nav-health').click();
     await expect(page.getByTestId('all-well')).toBeVisible();
 
     await injectFault(page, 'psu2', 'disconnected');
@@ -309,5 +328,41 @@ test.describe('authoring', () => {
     });
     await expect(page.getByTestId('health-detail-psu2')).toContainText(/may still be live/i);
     await expect(page.getByTestId('all-well')).toHaveCount(0);
+  });
+});
+
+test.describe('navigation rail', () => {
+  test('moves between sections', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('device-psu1')).toBeVisible();
+
+    await page.getByTestId('nav-profiles').click();
+    await expect(page.getByTestId('profiles-panel')).toBeVisible();
+
+    await page.getByTestId('nav-presets').click();
+    await expect(page.getByTestId('presets-panel')).toBeVisible();
+
+    await page.getByTestId('nav-bench').click();
+    await expect(page.getByTestId('device-psu1')).toBeVisible();
+  });
+
+  test('counts supplies needing attention, from any section', async ({ page }) => {
+    // A supply dropping out is worth noticing while you are editing a profile,
+    // not only while you happen to be looking at the bench.
+    await page.goto('/');
+    await expect(page.getByTestId('nav-health-count')).toHaveCount(0);
+
+    await injectFault(page, 'psu1', 'disconnected');
+    await expect(page.getByTestId('nav-health-count')).toHaveText('1', {
+      timeout: 10_000,
+    });
+
+    await page.getByTestId('nav-presets').click();
+    await expect(page.getByTestId('nav-health-count')).toBeVisible();
+
+    await injectFault(page, 'psu2', 'timeout');
+    await expect(page.getByTestId('nav-health-count')).toHaveText('2', {
+      timeout: 10_000,
+    });
   });
 });

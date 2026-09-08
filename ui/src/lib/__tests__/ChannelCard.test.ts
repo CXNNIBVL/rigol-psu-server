@@ -24,22 +24,42 @@ describe('ChannelCard', () => {
     expect(screen.getByTestId('power')).toHaveTextContent('Unknown');
   });
 
-  it('disables the controls on an offline supply', () => {
+  it('disables the whole control on an offline supply', () => {
     render(ChannelCard, {
       device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
       channel: unknownChannel(),
     });
-    expect(screen.getByRole('button', { name: 'On' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Off' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'On' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Off' })).toBeDisabled();
   });
 
   it('lets a quarantined supply be switched off but not on', () => {
+    // Quarantine blocks energising and nothing else, so only the "on" segment
+    // is refused — removing power must always stay available.
     render(ChannelCard, {
       device: device({ state: 'quarantined', reported_serial: 'X' } as never),
       channel: channel(),
     });
-    expect(screen.getByRole('button', { name: 'On' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Off' })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: 'On' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Off' })).toBeEnabled();
+  });
+
+  it('selects the segment matching the rail, and neither when unknown', () => {
+    const { unmount } = render(ChannelCard, {
+      device: device(),
+      channel: channel({ output_on: true }),
+    });
+    expect(screen.getByRole('radio', { name: 'On' })).toBeChecked();
+    unmount();
+
+    render(ChannelCard, {
+      device: device({ state: 'offline', code: 'timeout', message: 'x' } as never),
+      channel: unknownChannel(),
+    });
+    // Neither segment may be selected: defaulting to "Off" would assert
+    // something about a rail we cannot see.
+    expect(screen.getByRole('radio', { name: 'On' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Off' })).not.toBeChecked();
   });
 
   it('explains a limit violation instead of silently disabling the card', () => {

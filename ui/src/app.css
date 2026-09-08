@@ -1,5 +1,11 @@
 @import 'tailwindcss';
 @import '@skeletonlabs/skeleton';
+/* Styles for the anatomy components — navigation, segmented control and the
+   rest. These live in @skeletonlabs/skeleton-common and reach us through
+   skeleton-svelte's stylesheet; the base package alone only carries utilities
+   like `btn` and `card`, so without this the components render as bare markup
+   with no error to say why. */
+@import '@skeletonlabs/skeleton-svelte';
 @import '@skeletonlabs/skeleton/themes/cerberus';
 
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';

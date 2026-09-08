@@ -535,6 +535,21 @@ The resulting bundle is roughly 45 KB of JavaScript and 43 KB of CSS, about
 24 KB gzipped in total. That is the concrete form of the trade made in §3.1
 against Flutter Web, whose CanvasKit payload is measured in megabytes.
 
+Navigation is Skeleton's **Navigation in `rail` layout** — a vertical strip of
+icon-plus-label triggers down the left edge, carrying a count of supplies needing
+attention so a unit dropping out is visible while you are editing a profile, not
+only while you happen to be looking at the bench. Channel output is Skeleton's
+**SegmentedControl**, which shows both states at once with the current one
+indicated, rather than two buttons that leave the state to be inferred. When a
+supply is not answering the control has **no segment selected**: defaulting to
+"Off" would assert something about a rail nobody can see.
+
+Note that the anatomy components are styled by `@skeletonlabs/skeleton-common`,
+which reaches the app through `@skeletonlabs/skeleton-svelte`'s stylesheet. The
+base `@skeletonlabs/skeleton` import only carries utilities like `btn` and
+`card`, so without that second import the components render as unstyled markup
+with nothing to say why.
+
 Two conventions worth fixing now, because a component library makes it easy to
 drift:
 

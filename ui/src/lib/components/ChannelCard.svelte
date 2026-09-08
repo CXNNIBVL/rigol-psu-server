@@ -13,6 +13,7 @@
     TONAL,
     UNKNOWN,
   } from '../format';
+  import { SegmentedControl } from '@skeletonlabs/skeleton-svelte';
   import { ApiFailure, setOutput, setSetpoint } from '../api';
   import StatusBadge from './StatusBadge.svelte';
 
@@ -54,6 +55,13 @@
       busy = false;
     }
   }
+
+  // Empty string means no selection: when the supply is not answering we do not
+  // know which way this rail is set, and the control must not claim otherwise
+  // by defaulting to "Off".
+  const outputValue = $derived(
+    channel.output_on === null ? '' : channel.output_on ? 'on' : 'off',
+  );
 
   async function toggle(on: boolean) {
     error = null;
@@ -143,25 +151,27 @@
     </button>
   </form>
 
-  <div class="flex gap-2">
-    <!-- Switching off is never blocked, whatever state the supply is in. -->
-    <button
-      class="btn preset-tonal-error grow"
-      type="button"
-      disabled={device.state === 'offline' || busy}
-      onclick={() => toggle(false)}
-    >
-      Off
-    </button>
-    <button
-      class="btn preset-filled-primary-500 grow"
-      type="button"
-      disabled={!energisable || busy}
-      onclick={() => toggle(true)}
-    >
-      On
-    </button>
-  </div>
+  <SegmentedControl
+    value={outputValue}
+    onValueChange={(details) => toggle(details.value === 'on')}
+    disabled={busy || device.state === 'offline'}
+    aria-label="{channel.id} output"
+    class="w-full"
+  >
+    <SegmentedControl.Control class="w-full">
+      <SegmentedControl.Indicator />
+      <!-- Switching off is never blocked, whatever state the supply is in, so
+           only the "on" segment carries a disabled condition. -->
+      <SegmentedControl.Item value="off" class="grow">
+        <SegmentedControl.ItemText>Off</SegmentedControl.ItemText>
+        <SegmentedControl.ItemHiddenInput />
+      </SegmentedControl.Item>
+      <SegmentedControl.Item value="on" disabled={!energisable} class="grow">
+        <SegmentedControl.ItemText>On</SegmentedControl.ItemText>
+        <SegmentedControl.ItemHiddenInput />
+      </SegmentedControl.Item>
+    </SegmentedControl.Control>
+  </SegmentedControl>
 
   {#if error}
     <p class="text-sm preset-tonal-error p-2 rounded" role="alert" data-testid="channel-error">

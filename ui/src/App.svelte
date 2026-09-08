@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { Navigation } from '@skeletonlabs/skeleton-svelte';
   import { Bench } from './lib/bench.svelte';
   import DeviceCard from './lib/components/DeviceCard.svelte';
   import ProfilesPanel from './lib/components/ProfilesPanel.svelte';
   import PresetsPanel from './lib/components/PresetsPanel.svelte';
   import HealthPanel from './lib/components/HealthPanel.svelte';
+  import NavIcon from './lib/components/NavIcon.svelte';
 
   const bench = new Bench();
+
   type Tab = 'bench' | 'profiles' | 'presets' | 'health';
   let tab = $state<Tab>('bench');
 
@@ -19,6 +22,14 @@
 
   const devices = $derived(bench.snapshot?.devices ?? []);
 
+  // Surfaced on the rail so a supply going offline is noticeable from any
+  // section, not only from the one that happens to show it.
+  const unhealthy = $derived(
+    devices.filter(
+      (d) => d.state !== 'online' || d.channels.some((c) => c.violation !== null),
+    ).length,
+  );
+
   // `onMount` rather than `$effect`: the connection must be opened exactly once
   // for the life of the component. An effect would re-run if anything it
   // touched became reactive, silently turning every state update into a
@@ -29,44 +40,67 @@
   });
 </script>
 
-<main class="mx-auto max-w-7xl p-4 space-y-6">
-  <header class="flex items-baseline justify-between gap-4">
-    <h1 class="h2">PSU Bench</h1>
-    {#if bench.connection !== 'open'}
-      <!-- Losing the connection means losing knowledge, so it is stated
-           plainly rather than tucked into a corner icon. -->
-      <span class="badge preset-tonal-warning" role="status" data-testid="connection">
-        {bench.connection === 'connecting' ? 'Connecting…' : 'Disconnected — readings are unknown'}
-      </span>
+<div class="flex min-h-screen">
+  <Navigation layout="rail" class="shrink-0">
+    <Navigation.Header>
+      <span class="font-bold text-lg" title="PSU Bench">PSU</span>
+    </Navigation.Header>
+
+    <Navigation.Content>
+      <Navigation.Menu>
+        {#each TABS as entry (entry.id)}
+          <Navigation.Trigger
+            onclick={() => (tab = entry.id)}
+            aria-current={tab === entry.id ? 'page' : undefined}
+            data-selected={tab === entry.id ? '' : undefined}
+            data-testid="nav-{entry.id}"
+          >
+            <div class="relative">
+              <NavIcon name={entry.id} />
+              {#if entry.id === 'health' && unhealthy > 0}
+                <!-- Count, not just a dot: "two supplies need attention" is a
+                     different situation from "one does". -->
+                <span
+                  class="badge preset-filled-warning-500 absolute -top-2 -right-3 text-xs px-1.5"
+                  data-testid="nav-health-count"
+                >
+                  {unhealthy}
+                </span>
+              {/if}
+            </div>
+            <Navigation.TriggerText>{entry.label}</Navigation.TriggerText>
+          </Navigation.Trigger>
+        {/each}
+      </Navigation.Menu>
+    </Navigation.Content>
+  </Navigation>
+
+  <main class="grow p-4 space-y-6 overflow-x-auto">
+    <header class="flex items-baseline justify-between gap-4">
+      <h1 class="h2">PSU Bench</h1>
+      {#if bench.connection !== 'open'}
+        <!-- Losing the connection means losing knowledge, so it is stated
+             plainly rather than tucked into a corner icon. -->
+        <span class="badge preset-tonal-warning text-sm px-3 py-1" role="status" data-testid="connection">
+          {bench.connection === 'connecting' ? 'Connecting…' : 'Disconnected — readings are unknown'}
+        </span>
+      {/if}
+    </header>
+
+    {#if tab === 'profiles'}
+      <ProfilesPanel {devices} />
+    {:else if tab === 'presets'}
+      <PresetsPanel />
+    {:else if tab === 'health'}
+      <HealthPanel {devices} />
+    {:else if bench.snapshot}
+      <div class="space-y-8">
+        {#each bench.snapshot.devices as device (device.slot)}
+          <DeviceCard {device} />
+        {/each}
+      </div>
+    {:else}
+      <p class="opacity-60">Waiting for the server…</p>
     {/if}
-  </header>
-
-  <nav class="flex flex-wrap gap-2" aria-label="Sections">
-    {#each TABS as entry (entry.id)}
-      <button
-        class="btn {tab === entry.id ? 'preset-filled' : 'preset-tonal'}"
-        type="button"
-        aria-current={tab === entry.id ? 'page' : undefined}
-        onclick={() => (tab = entry.id)}
-      >
-        {entry.label}
-      </button>
-    {/each}
-  </nav>
-
-  {#if tab === 'profiles'}
-    <ProfilesPanel {devices} />
-  {:else if tab === 'presets'}
-    <PresetsPanel />
-  {:else if tab === 'health'}
-    <HealthPanel {devices} />
-  {:else if bench.snapshot}
-    <div class="space-y-8">
-      {#each bench.snapshot.devices as device (device.slot)}
-        <DeviceCard {device} />
-      {/each}
-    </div>
-  {:else}
-    <p class="opacity-60">Waiting for the server…</p>
-  {/if}
-</main>
+  </main>
+</div>
