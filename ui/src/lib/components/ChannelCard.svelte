@@ -1,0 +1,157 @@
+<script lang="ts">
+  import type { ChannelView, DeviceView } from '../types';
+  import {
+    canEnergise,
+    channelStatus,
+    formatAmps,
+    formatVolts,
+    formatWatts,
+    isWritable,
+    UNKNOWN,
+  } from '../format';
+  import { ApiFailure, setOutput, setSetpoint } from '../api';
+  import StatusBadge from './StatusBadge.svelte';
+
+  let { device, channel }: { device: DeviceView; channel: ChannelView } = $props();
+
+  let volts = $state('');
+  let amps = $state('');
+  let error = $state<string | null>(null);
+  let busy = $state(false);
+
+  const status = $derived(channelStatus(channel));
+  const writable = $derived(isWritable(device, channel));
+  const energisable = $derived(canEnergise(device, channel));
+
+  // Readings are null when the supply is not answering. They are rendered as
+  // "Unknown", never as zero: the rail may still be live.
+  const volt = $derived(formatVolts(channel.measurement?.volt ?? null));
+  const curr = $derived(formatAmps(channel.measurement?.curr ?? null));
+  const power = $derived(formatWatts(channel.measurement?.power ?? null));
+
+  async function apply(event: SubmitEvent) {
+    event.preventDefault();
+    error = null;
+    busy = true;
+    try {
+      await setSetpoint(device.slot, channel.id, {
+        volt: Number(volts),
+        curr_limit: Number(amps),
+      });
+      volts = '';
+      amps = '';
+    } catch (e) {
+      error = e instanceof ApiFailure ? e.detail.message : String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function toggle(on: boolean) {
+    error = null;
+    busy = true;
+    try {
+      await setOutput(device.slot, channel.id, on);
+    } catch (e) {
+      error = e instanceof ApiFailure ? e.detail.message : String(e);
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+<article class="card preset-outlined-surface-200-800 p-4 space-y-3" data-testid="channel-{device.slot}-{channel.id}">
+  <header class="flex items-center justify-between gap-2">
+    <h3 class="h4">{channel.id}</h3>
+    <StatusBadge {status} />
+  </header>
+
+  <dl class="reading grid grid-cols-3 gap-2 text-center">
+    <div>
+      <dt class="text-xs opacity-60">Voltage</dt>
+      <dd class="text-lg" data-testid="volt">{volt}</dd>
+    </div>
+    <div>
+      <dt class="text-xs opacity-60">Current</dt>
+      <dd class="text-lg" data-testid="curr">{curr}</dd>
+    </div>
+    <div>
+      <dt class="text-xs opacity-60">Power</dt>
+      <dd class="text-lg" data-testid="power">{power}</dd>
+    </div>
+  </dl>
+
+  <p class="text-xs opacity-60">
+    Limits {channel.limits.max_volt.toFixed(3)} V / {channel.limits.max_curr.toFixed(3)} A
+    &middot; setpoint
+    {channel.setpoint ? `${channel.setpoint.volt.toFixed(3)} V` : UNKNOWN}
+  </p>
+
+  {#if status.detail}
+    <p class="text-xs preset-tonal-{status.tone} p-2 rounded" data-testid="channel-detail">
+      {status.detail}
+    </p>
+  {/if}
+
+  <!--
+    `novalidate` is deliberate. The `max` attributes below still drive the
+    spinners and assistive technology, but native constraint validation would
+    silently refuse to submit an out-of-range value and show a generic browser
+    tooltip instead. The server's clamp message names the requested value and
+    the limit, and it is the same message however the value got there — so the
+    server stays the single authority and the user always gets the useful text.
+  -->
+  <form class="flex gap-2" onsubmit={apply} novalidate>
+    <input
+      class="input"
+      type="number"
+      step="0.001"
+      min="0"
+      max={channel.limits.max_volt}
+      placeholder="V"
+      aria-label="{channel.id} voltage"
+      bind:value={volts}
+      disabled={!writable || busy}
+    />
+    <input
+      class="input"
+      type="number"
+      step="0.001"
+      min="0"
+      max={channel.limits.max_curr}
+      placeholder="A"
+      aria-label="{channel.id} current limit"
+      bind:value={amps}
+      disabled={!writable || busy}
+    />
+    <button class="btn preset-filled" type="submit" disabled={!writable || busy || !volts || !amps}>
+      Set
+    </button>
+  </form>
+
+  <div class="flex gap-2">
+    <!-- Switching off is never blocked, whatever state the supply is in. -->
+    <button
+      class="btn preset-tonal-error grow"
+      type="button"
+      disabled={device.state === 'offline' || busy}
+      onclick={() => toggle(false)}
+    >
+      Off
+    </button>
+    <button
+      class="btn preset-filled-primary grow"
+      type="button"
+      disabled={!energisable || busy}
+      onclick={() => toggle(true)}
+    >
+      On
+    </button>
+  </div>
+
+  {#if error}
+    <p class="text-sm preset-tonal-error p-2 rounded" role="alert" data-testid="channel-error">
+      {error}
+    </p>
+  {/if}
+</article>

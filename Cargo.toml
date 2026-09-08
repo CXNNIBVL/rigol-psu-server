@@ -22,5 +22,7 @@ clap = { version = "4", features = ["derive"] }
 tower-http = { version = "0.6", features = ["trace"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+rust-embed = { version = "8", features = ["interpolate-folder-path"] }
+mime_guess = "2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 psu-core = { path = "crates/core" }

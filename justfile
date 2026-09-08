@@ -44,10 +44,15 @@ build: build-ui
 dev:
     cargo run -p server --features simulation -- --simulate 3 --bind 127.0.0.1:8080
 
-# UI component tests (Vitest).
+# UI type check and component tests.
 test-ui:
-    cd ui && npm run test
+    cd ui && npm run check && npm run test
 
 # Browser end-to-end tests (Playwright) against a simulated server.
-test-e2e:
+# Builds the bundle first, so the tests never run against a stale UI.
+test-e2e: build-ui
     cd ui && npx playwright test
+
+# One-time, and on any machine that runs the e2e suite.
+install-browsers:
+    cd ui && npx playwright install chromium

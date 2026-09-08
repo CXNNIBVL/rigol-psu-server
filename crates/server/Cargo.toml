@@ -27,6 +27,8 @@ tower.workspace = true
 
 [dependencies]
 axum.workspace = true
+mime_guess.workspace = true
+rust-embed.workspace = true
 clap.workspace = true
 dp832 = { workspace = true, features = ["serde"] }
 psu-core.workspace = true

@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "types": ["vitest/globals", "node", "@testing-library/jest-dom"],
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  },
+  // Application and test sources only. The build config files are excluded
+  // because Vitest ships its own pinned copy of Vite, and type-checking them
+  // pits that copy's plugin types against the project's Vite 8 — a conflict in
+  // the dependency tree, not a defect in the code.
+  "include": ["src/**/*.ts", "src/**/*.svelte", "e2e/**/*.ts"]
+}

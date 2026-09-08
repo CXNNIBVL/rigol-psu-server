@@ -3,3 +3,5 @@ node_modules/
 ui/dist/
 *.db
 *.db-journal
+ui/test-results/
+ui/playwright-report/

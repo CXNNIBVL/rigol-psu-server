@@ -86,7 +86,7 @@ of one PSU is 3 queries, not 9.
 | Command API | REST + JSON, OpenAPI spec generated via `utoipa` |
 | Live telemetry | WebSocket, full state snapshots at 2 Hz |
 | Frontend | Svelte SPA (Vite), static build |
-| Component library | Skeleton UI v3 (`@skeletonlabs/skeleton` + `skeleton-svelte`) on Tailwind |
+| Component library | Skeleton UI v5 (`@skeletonlabs/skeleton` + `skeleton-svelte`) on Tailwind 4 |
 | Theme | Skeleton's built-in **Cerberus**, applied via `data-theme="cerberus"` |
 | Frontend delivery | Embedded in the binary via `rust-embed`, served on the same port |
 | User data store | SQLite via `rusqlite`, migrations from commit one |
@@ -498,12 +498,18 @@ Build order chosen so a half-finished v1 is still useful.
 
 ### 14.1 Component library
 
-**Skeleton UI v3** with the built-in **Cerberus** theme. Skeleton is imported
-CSS-first alongside Tailwind and the theme is selected with a `data-theme`
-attribute on `<html>`, so there is no theme build step and no runtime theming
-machinery to maintain. Skeleton publishes a Vite + Svelte installation path, so
-adopting it does not drag in SvelteKit — the SPA stays a plain Vite build whose
-output is embedded in the binary.
+**Skeleton UI v5** with the built-in **Cerberus** theme. (Recorded as v3 when
+this section was first written, from documentation that was a major version
+behind; v5.0.1 is what is installed.) Skeleton is imported CSS-first alongside
+Tailwind 4 and the theme is selected with a `data-theme` attribute on `<html>`,
+so there is no theme build step and no runtime theming machinery to maintain.
+Skeleton publishes a Vite + Svelte installation path, so adopting it does not
+drag in SvelteKit — the SPA stays a plain Vite build whose output is embedded in
+the binary.
+
+The resulting bundle is roughly 45 KB of JavaScript and 43 KB of CSS, about
+24 KB gzipped in total. That is the concrete form of the trade made in §3.1
+against Flutter Web, whose CanvasKit payload is measured in megabytes.
 
 Two conventions worth fixing now, because a component library makes it easy to
 drift:

@@ -42,7 +42,12 @@ pub fn router(state: AppState) -> Router {
     #[cfg(feature = "simulation")]
     let api = api.merge(crate::simulation::routes());
 
-    Router::new().nest("/api", api).with_state(state)
+    Router::new()
+        .nest("/api", api)
+        // The SPA is served from the same origin and port as the API, so there
+        // is no CORS surface and nothing to configure per deployment.
+        .merge(crate::assets::routes())
+        .with_state(state)
 }
 
 async fn get_state(State(state): State<AppState>) -> Json<SystemState> {
