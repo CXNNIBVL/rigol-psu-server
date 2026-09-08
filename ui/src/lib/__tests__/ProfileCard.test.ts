@@ -316,4 +316,38 @@ describe('ProfileCard', () => {
     expect(calls[0]!.url).toBe('/api/profiles/7/apply');
     expect(calls[1]!.url).toBe('/api/profiles/7/apply?force=true');
   });
+
+  it('shows what each rail is doing beside what it should do', () => {
+    // Without this the card describes an intention, and checking whether the
+    // board draws what you expect means leaving for the bench.
+    const drawing = [
+      device({
+        slot: 'psu1',
+        channels: [
+          channel({
+            id: 'CH1',
+            output_on: true,
+            setpoint: { volt: 1.2, curr_limit: 1 },
+            measurement: { volt: 1.198, curr: 0.42, power: 0.503 },
+            claimed_by: claim('CH1'),
+          }),
+          channel({
+            id: 'CH2',
+            output_on: false,
+            setpoint: { volt: 3.3, curr_limit: 1 },
+            claimed_by: claim('CH2'),
+          }),
+        ],
+      }),
+    ];
+
+    render(ProfileCard, { profile: profile(), devices: drawing });
+    const sequence = screen.getByTestId('profile-sequence');
+    // Specified, and measured.
+    expect(sequence).toHaveTextContent('1.2 V');
+    expect(sequence).toHaveTextContent('1.198 V');
+    expect(sequence).toHaveTextContent('0.420 A');
+    // An idle rail reads as a dash here too, never a fabricated zero.
+    expect(sequence).toHaveTextContent('—');
+  });
 });

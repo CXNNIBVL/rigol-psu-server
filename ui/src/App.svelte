@@ -3,6 +3,8 @@
   import { Navigation } from '@skeletonlabs/skeleton-svelte';
   import { Bench } from './lib/bench.svelte';
   import { countNeedingAttention } from './lib/bench-summary';
+  import { landingSection, type Section } from './lib/landing';
+  import { listProfiles } from './lib/api';
   import BenchView from './lib/components/BenchView.svelte';
   import ProfilesPanel from './lib/components/ProfilesPanel.svelte';
   import PresetsPanel from './lib/components/PresetsPanel.svelte';
@@ -10,10 +12,11 @@
 
   const bench = new Bench();
 
-  type Tab = 'bench' | 'profiles' | 'presets';
-  let tab = $state<Tab>('bench');
+  // Undecided until we know whether there are profiles to land on. Resolving
+  // first avoids opening the bench and yanking the page away a moment later.
+  let tab = $state<Section | null>(null);
 
-  const TABS: Array<{ id: Tab; label: string }> = [
+  const TABS: Array<{ id: Section; label: string }> = [
     { id: 'bench', label: 'Bench' },
     { id: 'profiles', label: 'Profiles' },
     { id: 'presets', label: 'Settings' },
@@ -32,6 +35,13 @@
   // reconnect.
   onMount(() => {
     bench.start();
+
+    listProfiles()
+      .then((profiles) => (tab ??= landingSection(profiles.length)))
+      // The bench needs no setup to be useful, so it is the safe fallback when
+      // we cannot find out.
+      .catch(() => (tab ??= 'bench'));
+
     return () => bench.stop();
   });
 </script>
@@ -90,7 +100,9 @@
   </Navigation>
 
   <main class="grow p-4 space-y-6 overflow-x-auto">
-    {#if tab === 'profiles'}
+    {#if tab === null}
+      <p class="opacity-60">Loading…</p>
+    {:else if tab === 'profiles'}
       <ProfilesPanel {devices} />
     {:else if tab === 'presets'}
       <PresetsPanel />

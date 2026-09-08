@@ -14,7 +14,7 @@
     stateDetail,
     stateLabel,
   } from '../profile-state';
-  import { trim } from '../format';
+  import { reading, trim, UNKNOWN } from '../format';
   import ActionIcon from './ActionIcon.svelte';
 
   let {
@@ -38,6 +38,19 @@
   const condition = $derived(profileState(profile, devices));
   const staged = $derived(isStaged(profile, devices));
   const owner = $derived(railsOwnedBy(profile, devices));
+
+  // What each rail is actually doing, beside what it is meant to do. Without
+  // this the card describes an intention and you have to leave for the bench to
+  // find out whether the board is drawing what you expect — which is the
+  // difference between a configuration screen and one you can work from.
+  const rails = $derived(
+    profile.bindings.map((binding) => ({
+      binding,
+      channel: devices
+        .find((d) => d.slot === binding.slot)
+        ?.channels.find((c) => c.id === binding.channel),
+    })),
+  );
   const detail = $derived(stateDetail(condition, owner));
   // Cycling de-energises something that is currently live, so it asks first.
   let confirmingCycle = $state(false);
@@ -103,22 +116,36 @@
     attached to the rail above it, it read as "this rail waits", which is the
     opposite of what happens.
   -->
-  <ol class="space-y-0" data-testid="profile-sequence">
-    {#each profile.bindings as binding, index (binding.id)}
-      <li class="flex items-baseline gap-3 py-1">
+  <ol class="space-y-0 text-sm" data-testid="profile-sequence">
+    <li class="flex items-baseline gap-3 text-xs opacity-50">
+      <span class="w-4"></span>
+      <span class="w-28 shrink-0">Rail</span>
+      <span class="w-32">Specified</span>
+      <span class="grow"></span>
+      <span class="w-24 text-right">Voltage</span>
+      <span class="w-24 text-right">Current</span>
+    </li>
+    {#each rails as { binding, channel }, index (binding.id)}
+      <li class="flex items-baseline gap-3 py-1" data-testid="rail-{binding.id}">
         <span class="reading text-xs opacity-50 w-4 tabular-nums">{index + 1}</span>
         <span class="w-28 shrink-0">{binding.slot} · {binding.channel}</span>
-        <span class="reading tabular-nums">
+        <span class="reading w-32 tabular-nums">
           {trim(binding.preset.volt, 'V')}
           <span class="opacity-40">/</span>
           {trim(binding.preset.curr_limit, 'A')}
         </span>
-        <span class="text-xs opacity-60">{binding.preset.name}</span>
-        {#if !binding.output_on}
-          <span class="text-xs opacity-60">staged only</span>
-        {/if}
+        <span class="grow text-xs opacity-60 truncate">
+          {binding.preset.name}
+          {#if !binding.output_on}— staged only{/if}
+        </span>
+        <span class="reading w-24 text-right tabular-nums" data-testid="rail-volt">
+          {channel ? reading(channel, 'volt') : UNKNOWN}
+        </span>
+        <span class="reading w-24 text-right tabular-nums" data-testid="rail-curr">
+          {channel ? reading(channel, 'curr') : UNKNOWN}
+        </span>
       </li>
-      {#if binding.delay_ms > 0 && index < profile.bindings.length - 1}
+      {#if binding.delay_ms > 0 && index < rails.length - 1}
         <li class="flex items-center gap-3 pl-4 text-xs opacity-50" aria-hidden="true">
           <span class="border-l border-surface-300-700 h-4 ml-1.5"></span>
           <span>then wait {binding.delay_ms} ms</span>

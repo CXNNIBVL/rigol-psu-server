@@ -746,6 +746,38 @@ is outside what any wire can report.
 
 ---
 
+## 19. Profiles as the operating view
+
+Profiles is where the setup is worked from, and the app opens there whenever
+there is a profile to open.
+
+The argument is not organisational. The profile path carries everything that
+makes an action safe — sequencing with dwells, all-or-nothing refusal, clamp
+checks before anything is written, the two-step apply, ownership, power cycle.
+The per-channel controls carry none of it. Landing on Profiles makes the safer
+path the default one.
+
+**The prerequisite was live readings.** A profile card listed what it
+*specifies* and never what the rails are *doing*, so anyone operating from it
+had to leave for the bench to find out whether the board draws what they expect
+— a configuration screen wearing an operator's hat. Each rail now shows measured
+voltage and current beside the specified pair, with the same dash-versus-Unknown
+discipline as the bench.
+
+**With no profiles it opens on the bench**, which needs no setup to be useful and
+always has hardware to show. An empty list is a poor first impression. The
+section is chosen before the first render rather than after, so the page does
+not open on one view and yank itself to another.
+
+**The bench is not demoted.** Half of real bench work is "give me 5 V on
+something while I probe it", and routing that through profile creation would be
+worse than what came before. It stays one click away and unapologetic — and it
+remains the ground truth: profiles show what *should* be, the instruments show
+what *is*. Live readings narrow that gap without closing it, which is why the
+bench keeps its place rather than becoming an escape hatch.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

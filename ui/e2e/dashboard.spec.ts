@@ -17,6 +17,18 @@ function power(card: Locator): Locator {
   return card.getByRole('button', { name: /output$/ });
 }
 
+/**
+ * Open the app on a known section.
+ *
+ * The landing section depends on whether any profiles exist, and this suite
+ * creates them, so a test that wants the bench asks for it rather than assuming
+ * it is what loads.
+ */
+async function open(page: Page, section: 'bench' | 'profiles' | 'presets' = 'bench') {
+  await page.goto('/');
+  await page.getByTestId(`nav-${section}`).click();
+}
+
 test.afterEach(async ({ page }) => {
   // Leave the bench as we found it, so ordering between tests cannot matter.
   for (const slot of ['psu1', 'psu2', 'psu3']) {
@@ -25,7 +37,7 @@ test.afterEach(async ({ page }) => {
 });
 
 test('shows every configured supply and channel', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
 
   await expect(page.getByTestId('device-psu1')).toBeVisible();
   await expect(page.getByTestId('device-psu2')).toBeVisible();
@@ -36,7 +48,7 @@ test('shows every configured supply and channel', async ({ page }) => {
 });
 
 test('readings go live over the WebSocket', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
   const card = page.getByTestId('channel-psu1-CH1');
   const volt = card.getByTestId('volt');
 
@@ -52,7 +64,7 @@ test('readings go live over the WebSocket', async ({ page }) => {
 });
 
 test('a setpoint within limits is applied and reflected back', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
   const card = page.getByTestId('channel-psu1-CH1');
 
   await card.getByRole('button', { name: 'Edit CH1 setpoint' }).click();
@@ -93,7 +105,7 @@ test('switching a channel on and off changes how the card presents', async ({
 }) => {
   // The state is carried by the card's appearance rather than a badge, so this
   // asserts on the state attribute that drives it.
-  await page.goto('/');
+  await open(page);
   const card = page.getByTestId('channel-psu2-CH1');
   await expect(card).toHaveAttribute('data-state', 'off');
 
@@ -110,7 +122,7 @@ test('a supply that stops answering shows Unknown, never zero', async ({ page })
   // The reason fault injection exists. This state is unreachable in normal
   // operation and is exactly the one that must never be got wrong: a rail may
   // still be live, and a rendered 0.000 V would look identical to a safe one.
-  await page.goto('/');
+  await open(page);
   const card = page.getByTestId('channel-psu3-CH1');
   await expect(card.getByTestId('volt')).not.toContainText('Unknown');
 
@@ -125,7 +137,7 @@ test('a supply that stops answering shows Unknown, never zero', async ({ page })
 });
 
 test('an offline supply explains itself and disables its controls', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
   await injectFault(page, 'psu3', 'disconnected');
 
   const device = page.getByTestId('device-psu3');
@@ -184,8 +196,7 @@ test.describe('profiles', () => {
     page,
   }) => {
     const id = await seedProfile(page);
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
 
     const card = page.getByTestId(`profile-${id}`);
     await expect(card).toBeVisible();
@@ -216,8 +227,7 @@ test.describe('profiles', () => {
     page,
   }) => {
     const id = await seedProfile(page);
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
 
     const card = page.getByTestId(`profile-${id}`);
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
@@ -322,8 +332,7 @@ test.describe('authoring', () => {
       },
     });
 
-    await page.goto('/');
-    await page.getByTestId('nav-presets').click();
+    await open(page, 'presets');
 
     // The refusal is now stated up front rather than discovered by trying: the
     // row names the profile depending on it and the control is unavailable.
@@ -335,7 +344,7 @@ test.describe('authoring', () => {
   test('a supply\'s metadata opens in place', async ({ page }) => {
     // What the Health section used to exist for. As a floating panel this was
     // clipped by the table's scroll container and could not be read at all.
-    await page.goto('/');
+    await open(page);
     const identity = page.getByTestId('identity-psu1');
     const details = identity.locator('dl');
     // zag keeps the content mounted and hides it, so this is a visibility
@@ -359,7 +368,7 @@ test.describe('authoring', () => {
   }) => {
     // A live-rail count and a running total lived here; neither prompted any
     // action, and both restated the table underneath.
-    await page.goto('/');
+    await open(page);
     await expect(page.getByTestId('bench-attention')).toHaveCount(0);
 
     await injectFault(page, 'psu2', 'disconnected');
@@ -372,7 +381,7 @@ test.describe('authoring', () => {
 
 test.describe('navigation rail', () => {
   test('moves between sections', async ({ page }) => {
-    await page.goto('/');
+    await open(page);
     await expect(page.getByTestId('device-psu1')).toBeVisible();
 
     await page.getByTestId('nav-profiles').click();
@@ -388,7 +397,7 @@ test.describe('navigation rail', () => {
   test('counts supplies needing attention, from any section', async ({ page }) => {
     // A supply dropping out is worth noticing while you are editing a profile,
     // not only while you happen to be looking at the bench.
-    await page.goto('/');
+    await open(page);
     await expect(page.getByTestId('nav-attention-count')).toHaveCount(0);
 
     await injectFault(page, 'psu1', 'disconnected');
@@ -409,7 +418,7 @@ test.describe('navigation rail', () => {
     // The rail's stylesheet sets height: 100%, which resolves against its
     // parent — so without a definite height on the rail itself it collapsed to
     // the height of its items and left the rest of the column empty.
-    await page.goto('/');
+    await open(page);
     const rail = page.locator('[data-part="root"][data-layout="rail"]');
 
     const viewport = page.viewportSize()!.height;
@@ -435,7 +444,9 @@ test.describe('navigation rail', () => {
   });
 
   test('accents the selected section, and not only with colour', async ({ page }) => {
-    await page.goto('/');
+    // Selects the bench rather than assuming it: the landing section now
+    // depends on whether any profiles exist.
+    await open(page);
     const icon = (section: string) =>
       page.getByTestId(`nav-${section}`).locator('svg');
 
@@ -446,10 +457,16 @@ test.describe('navigation rail', () => {
     // Colour is never the only signal: the selected item also carries
     // aria-current and a heavier label.
     await expect(page.getByTestId('nav-bench')).toHaveAttribute('aria-current', 'page');
-    const weight = await page
-      .getByTestId('nav-bench')
-      .evaluate((el) => getComputedStyle(el).fontWeight);
-    expect(Number(weight)).toBeGreaterThan(500);
+    // Polled: the weight transitions, so a single read lands partway there.
+    await expect
+      .poll(async () =>
+        Number(
+          await page
+            .getByTestId('nav-bench')
+            .evaluate((el) => getComputedStyle(el).fontWeight),
+        ),
+      )
+      .toBeGreaterThan(500);
 
     // And it follows the selection.
     await page.getByTestId('nav-presets').click();
@@ -461,7 +478,7 @@ test.describe('navigation rail', () => {
 test('a live rail and the selected section share one accent', async ({ page }) => {
   // One accent meaning "active", rather than a second highlight colour that
   // means almost but not quite the same thing.
-  await page.goto('/');
+  await open(page);
   const card = page.getByTestId('channel-psu2-CH1');
   await power(card).click();
   // Wait on the button's own state, not the row's: reading the computed style
@@ -506,8 +523,7 @@ test.describe('lists', () => {
     await mk('Alpha', 'psu1');
     await mk('Beta', 'psu3');
 
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
     const profile = (name: string) =>
       page.getByRole('heading', { name: `${name} ${stamp}`, exact: true });
     await expect(profile('Alpha')).toBeVisible();
@@ -525,8 +541,7 @@ test.describe('lists', () => {
   test('the action icons carry accessible names', async ({ page }) => {
     // Icon-only controls have no visible text to fall back on, so the label is
     // the only thing a screen reader or a hover has to go on.
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
     await expect(page.getByTestId('new-profile')).toHaveAttribute(
       'aria-label',
       'New profile',
@@ -539,8 +554,7 @@ test.describe('lists', () => {
     // closed or opening for a new profile, so creating one and pressing New
     // reused the component and everything in it.
     const stamp = Date.now();
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
 
     await page.getByTestId('new-profile').click();
     await page.getByLabel('Profile name').fill(`First ${stamp}`);
@@ -554,8 +568,7 @@ test.describe('lists', () => {
 
   test('new settings start from an empty form', async ({ page }) => {
     const stamp = Date.now();
-    await page.goto('/');
-    await page.getByTestId('nav-presets').click();
+    await open(page, 'presets');
 
     await page.getByTestId('new-preset').click();
     await page.getByLabel('Preset name').fill(`First ${stamp}`);
@@ -570,8 +583,7 @@ test.describe('lists', () => {
   test('the channel picker is laid out like the rack', async ({ page }) => {
     // A flat dropdown repeated the supply name and the limits on every line and
     // grew a line per channel; this grows a row per supply.
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
     await page.getByTestId('new-profile').click();
     await page.getByRole('button', { name: 'Add rail' }).click();
 
@@ -589,8 +601,7 @@ test.describe('lists', () => {
   });
 
   test('a second rail does not land on the first one\'s channel', async ({ page }) => {
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
     await page.getByTestId('new-profile').click();
     await page.getByRole('button', { name: 'Add rail' }).click();
     await page.getByRole('button', { name: 'Add rail' }).click();
@@ -624,8 +635,7 @@ test.describe('lists', () => {
       });
     }
 
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
     const card = page
       .locator('article[data-testid^="profile-"]')
       .filter({ has: page.getByRole('heading', { name: `Rev C ${stamp}`, exact: true }) });
@@ -668,8 +678,7 @@ test.describe('lists', () => {
     });
     const profileId = (await created.json()).id;
 
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
     const card = page.getByTestId(`profile-${profileId}`);
     await card.getByRole('button', { name: 'Apply setpoints' }).click();
     await expect(card.getByTestId('profile-status')).toHaveText('Staged', {
@@ -704,8 +713,7 @@ test.describe('lists', () => {
     });
     const profileId = (await created.json()).id;
 
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
     const card = page.getByTestId(`profile-${profileId}`);
 
     // Nothing to cycle until this profile has its rails up.
@@ -755,11 +763,74 @@ test.describe('lists', () => {
     });
     await page.request.post('/api/devices/psu2/channels/CH1/output', { data: { on: true } });
 
-    await page.goto('/');
-    await page.getByTestId('nav-profiles').click();
+    await open(page, 'profiles');
     const card = page.getByTestId(`profile-${profileId}`);
     await expect(card.getByTestId('profile-status')).toHaveText('Live, values differ');
 
     await page.request.post('/api/devices/psu2/channels/CH1/output', { data: { on: false } });
+  });
+
+  test('opens on profiles once there is something to operate', async ({ page }) => {
+    // Profiles carries the sequencing, the clamp checks and the two-step apply
+    // that the per-channel controls do not, so it is where the setup is worked
+    // from. The suite has created profiles by now, so this is the case.
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `land ${stamp}`, volt: 1, curr_limit: 1,
+        ovp_level: 2, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    await page.request.post('/api/profiles', {
+      data: {
+        name: `Landing ${stamp}`, description: '',
+        bindings: [{
+          slot: 'psu1', channel: 'CH1', preset_id: (await preset.json()).id,
+          sequence_order: 1, delay_ms: 0, output_on: true,
+        }],
+      },
+    });
+
+    await page.goto('/');
+    await expect(page.getByTestId('profiles-panel')).toBeVisible();
+    await expect(page.getByTestId('nav-profiles')).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('a profile shows what its rails are drawing', async ({ page }) => {
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `draw ${stamp}`, volt: 5, curr_limit: 1,
+        ovp_level: 6, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    const created = await page.request.post('/api/profiles', {
+      data: {
+        name: `Drawing ${stamp}`, description: '',
+        bindings: [{
+          slot: 'psu3', channel: 'CH2', preset_id: (await preset.json()).id,
+          sequence_order: 1, delay_ms: 0, output_on: true,
+        }],
+      },
+    });
+    const profileId = (await created.json()).id;
+
+    await open(page, 'profiles');
+    const card = page.getByTestId(`profile-${profileId}`);
+    const sequence = card.getByTestId('profile-sequence');
+
+    // Idle: a dash rather than a fabricated zero, same rule as the bench.
+    await expect(sequence.getByTestId('rail-volt')).toHaveText('—');
+
+    await card.getByRole('button', { name: 'Apply setpoints' }).click();
+    await card.getByRole('button', { name: 'Power on' }).click();
+
+    // Live: what the rail is actually doing, without leaving for the bench.
+    await expect(sequence.getByTestId('rail-volt')).toContainText('V', {
+      timeout: 10_000,
+    });
+    await expect(sequence.getByTestId('rail-curr')).toContainText('A');
+
+    await card.getByRole('button', { name: 'Power off' }).click();
   });
 });
