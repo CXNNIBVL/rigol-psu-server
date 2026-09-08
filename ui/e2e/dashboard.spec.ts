@@ -58,7 +58,7 @@ test('a setpoint within limits is applied and reflected back', async ({ page }) 
   await card.getByRole('button', { name: 'Edit CH1 setpoint' }).click();
   await card.getByLabel('CH1 voltage').fill('3.3');
   await card.getByLabel('CH1 current limit').fill('1.0');
-  await card.getByRole('button', { name: 'Apply' }).click();
+  await card.getByRole('button', { name: 'Apply CH1 setpoint' }).click();
 
   // The value comes back from the instrument via the setpoint poll, not from
   // local state, so this asserts the whole round trip.
@@ -80,7 +80,7 @@ test('a setpoint above the operator limit is refused, with both numbers', async 
 
   await card.getByRole('button', { name: 'Edit CH3 setpoint' }).click();
   await card.getByLabel('CH3 voltage').fill('12');
-  await card.getByRole('button', { name: 'Apply' }).click();
+  await card.getByRole('button', { name: 'Apply CH3 setpoint' }).click();
 
   const error = card.getByTestId('channel-error');
   await expect(error).toBeVisible();
@@ -532,5 +532,38 @@ test.describe('lists', () => {
       'New profile',
     );
     await expect(page.getByTestId('new-profile')).toHaveAttribute('title', 'New profile');
+  });
+
+  test('a new profile starts from an empty form', async ({ page }) => {
+    // The editor was keyed on a string that is identical whether the dialog is
+    // closed or opening for a new profile, so creating one and pressing New
+    // reused the component and everything in it.
+    const stamp = Date.now();
+    await page.goto('/');
+    await page.getByTestId('nav-profiles').click();
+
+    await page.getByTestId('new-profile').click();
+    await page.getByLabel('Profile name').fill(`First ${stamp}`);
+    await page.getByRole('button', { name: 'Add rail' }).click();
+    await page.getByRole('button', { name: 'Create profile' }).click();
+
+    await page.getByTestId('new-profile').click();
+    await expect(page.getByLabel('Profile name')).toHaveValue('');
+    await expect(page.locator('[data-testid^="binding-"]')).toHaveCount(0);
+  });
+
+  test('new settings start from an empty form', async ({ page }) => {
+    const stamp = Date.now();
+    await page.goto('/');
+    await page.getByTestId('nav-presets').click();
+
+    await page.getByTestId('new-preset').click();
+    await page.getByLabel('Preset name').fill(`First ${stamp}`);
+    await page.getByLabel('Voltage').fill('4.2');
+    await page.getByRole('button', { name: 'Add settings' }).click();
+
+    await page.getByTestId('new-preset').click();
+    await expect(page.getByLabel('Preset name')).toHaveValue('');
+    await expect(page.getByLabel('Voltage')).toHaveValue('0');
   });
 });

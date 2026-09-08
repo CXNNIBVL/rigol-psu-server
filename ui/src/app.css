@@ -68,3 +68,16 @@
 		transition: none;
 	}
 }
+
+/* Number inputs carry native spinner arrows that are useless here — a rail is
+   typed, not nudged in steps of a thousandth — and they crowd an already tight
+   row. */
+input[type='number'] {
+	appearance: textfield;
+
+	&::-webkit-inner-spin-button,
+	&::-webkit-outer-spin-button {
+		appearance: none;
+		margin: 0;
+	}
+}

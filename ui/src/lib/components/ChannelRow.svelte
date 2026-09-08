@@ -187,16 +187,22 @@
           disabled={busy}
         />
         <span class="text-xs opacity-60">A</span>
-        <button class="btn btn-sm preset-filled" type="button" onclick={applySetpoint} disabled={busy}>
-          Apply
-        </button>
-        <button class="btn btn-sm preset-tonal" type="button" onclick={revert}>Cancel</button>
-        <!-- The limit is shown where it actually constrains something, rather
-             than repeated down a column of its own. -->
-        <span class="text-xs opacity-60 whitespace-nowrap">
-          max {trim(channel.limits.max_volt, 'V')} / {trim(channel.limits.max_curr, 'A')}
-        </span>
+        <ActionIcon
+          action="confirm"
+          label="Apply {channel.id} setpoint"
+          onclick={applySetpoint}
+          disabled={busy}
+        />
+        <ActionIcon action="dismiss" label="Discard {channel.id} edit" onclick={revert} />
       </div>
+      <!--
+        On a line of its own. Six controls and a sentence crammed into one row
+        left nothing room to breathe, and the limit is a note about what you are
+        typing rather than another control.
+      -->
+      <p class="text-xs opacity-60 mt-1">
+        Enter applies. Limit {trim(channel.limits.max_volt, 'V')} / {trim(channel.limits.max_curr, 'A')}
+      </p>
     {:else}
       <div class="flex items-center justify-end gap-2">
         <span class="reading tabular-nums">

@@ -95,18 +95,23 @@
     <p class="preset-tonal-error p-3 rounded text-sm" role="alert">{error}</p>
   {/if}
 
-  <!-- Keyed so switching between profiles reseeds the form rather than leaving
-       stale values from the last one. -->
-  {#key editing?.id ?? 'new'}
-    <FormDialog
-      open={editing !== undefined}
-      title={editing ? `Edit ${editing.name}` : 'New profile'}
-      onclose={() => (editing = undefined)}
-      testid="profile-dialog"
-    >
-      <ProfileEditor {devices} profile={editing ?? null} ondone={done} />
-    </FormDialog>
-  {/key}
+  <FormDialog
+    open={editing !== undefined}
+    title={editing ? `Edit ${editing.name}` : 'New profile'}
+    onclose={() => (editing = undefined)}
+    testid="profile-dialog"
+  >
+    <!--
+      Mounted only while the dialog is open, so every open starts from a fresh
+      form. This was keyed on `editing?.id ?? 'new'`, which is the same string
+      whether the dialog is closed or being opened for a new profile — so
+      creating one and then pressing New reused the component, and its state,
+      complete with the profile just saved.
+    -->
+    {#if editing !== undefined}
+      <ProfileEditor {devices} profile={editing} ondone={done} />
+    {/if}
+  </FormDialog>
 
   {#if loaded && profiles.length === 0}
     <p class="opacity-60 text-sm">

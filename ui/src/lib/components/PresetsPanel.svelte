@@ -250,6 +250,7 @@
     onclose={cancel}
     testid="preset-dialog"
   >
+    {#if editing !== undefined}
       <form class="space-y-3" onsubmit={submit} novalidate>
 
     <div class="flex flex-wrap gap-3">
@@ -297,6 +298,7 @@
       </button>
     </div>
       </form>
+    {/if}
   </FormDialog>
 
 </section>

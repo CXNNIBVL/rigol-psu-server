@@ -100,11 +100,11 @@ describe('ChannelRow', () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     render(ChannelRow, { device: device(), channel: channel() });
 
-    expect(screen.queryByText(/max 5\.5 V/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Limit 5\.5 V/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Edit CH1 setpoint' }));
     // At its own precision: `5.500 V` implies a thousandth of a volt of meaning
     // that a limit set to 5.5 does not have.
-    expect(screen.getByText('max 5.5 V / 2 A')).toBeInTheDocument();
+    expect(screen.getByText(/Limit 5\.5 V \/ 2 A/)).toBeInTheDocument();
   });
 
   it('shows a dash for an idle rail, and the word for an unseen one', () => {
@@ -156,7 +156,7 @@ describe('ChannelRow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit CH1 setpoint' }));
     await userEvent.clear(screen.getByLabelText('CH1 current limit'));
     await userEvent.type(screen.getByLabelText('CH1 current limit'), '0.5');
-    await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Apply CH1 setpoint' }));
 
     // The untouched field keeps whatever the instrument already had.
     expect(sent[0]).toEqual({ volt: 3.3, curr_limit: 0.5 });

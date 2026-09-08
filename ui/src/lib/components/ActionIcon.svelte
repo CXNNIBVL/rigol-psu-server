@@ -22,7 +22,7 @@
     title,
     testid,
   }: {
-    action: 'new' | 'edit' | 'delete';
+    action: 'new' | 'edit' | 'delete' | 'confirm' | 'dismiss';
     label: string;
     onclick?: () => void;
     disabled?: boolean;
@@ -35,6 +35,10 @@
     new: 'hover:text-success-500 focus-visible:text-success-500',
     edit: 'hover:text-warning-500 focus-visible:text-warning-500',
     delete: 'hover:text-error-500 focus-visible:text-error-500',
+    confirm: 'hover:text-success-500 focus-visible:text-success-500',
+    // Dismissing is not destructive — it puts nothing at risk — so it stays
+    // neutral and simply brightens.
+    dismiss: '',
   } as const;
 </script>
 
@@ -64,10 +68,14 @@
       <!-- Pencil -->
       <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z" />
       <path d="M14.5 6.5l3 3" />
-    {:else}
+    {:else if action === 'delete'}
       <!-- Bin -->
       <path d="M4 7h16M10 7V5h4v2M6 7l1 13h10l1-13" />
       <path d="M10 11v6M14 11v6" />
+    {:else if action === 'confirm'}
+      <path d="M5 12.5l5 5L19 7" />
+    {:else}
+      <path d="M6 6l12 12M18 6L6 18" />
     {/if}
   </svg>
 </button>
