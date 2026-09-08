@@ -127,7 +127,8 @@ describe('ProfileEditor', () => {
         name: 'Mainboard',
         description: 'core first',
         bindings: [
-          { id: 1, slot: 'psu1', channel: 'CH2', preset: PRESETS[0]!, sequence_order: 4, delay_ms: 90, output_on: true },
+          { id: 1, slot: 'psu1', channel: 'CH2', preset: PRESETS[0]!, sequence_order: 1, delay_ms: 90, output_on: true },
+          { id: 2, slot: 'psu1', channel: 'CH1', preset: PRESETS[0]!, sequence_order: 2, delay_ms: 0, output_on: true },
         ],
       },
     });
@@ -135,6 +136,22 @@ describe('ProfileEditor', () => {
 
     expect(screen.getByLabelText('Profile name')).toHaveValue('Mainboard');
     expect(screen.getByLabelText('Rail 1 dwell')).toHaveValue(90);
+  });
+
+  it('puts the dwell between rails, and none after the last', async () => {
+    // Inside rail N's own block it read as "this rail waits", which is the
+    // opposite of what happens.
+    mockApi();
+    render(ProfileEditor, { devices: DEVICES });
+    await ready();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+    expect(screen.queryByLabelText('Rail 1 dwell')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
+    expect(screen.getByLabelText('Rail 1 dwell')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Rail 2 dwell')).not.toBeInTheDocument();
+    expect(screen.getByText(/ms before rail 2/)).toBeInTheDocument();
   });
 
   it('says so when there are no supplies to bind to', async () => {

@@ -24,6 +24,14 @@
   let confirming = $state<ChannelPreset | null>(null);
   let busy = $state(false);
   let form = $state(blank());
+  let pristine = $state(JSON.stringify(blank()));
+  const dirty = $derived(JSON.stringify(form) !== pristine);
+
+  // The server refuses a trip point below the value it protects, because it
+  // would fire the moment the rail comes up. Saying so while you type beats
+  // saying it after you submit.
+  const ovpTooLow = $derived(form.ovp_enabled && form.ovp_level < form.volt);
+  const ocpTooLow = $derived(form.ocp_enabled && form.ocp_level < form.curr_limit);
 
   function blank() {
     return {
@@ -82,17 +90,20 @@
     editing = preset;
     const { id: _id, ...rest } = preset;
     form = { ...rest };
+    pristine = JSON.stringify(form);
   }
 
   function create() {
     editing = null;
     form = blank();
+    pristine = JSON.stringify(form);
     error = null;
   }
 
   function cancel() {
     editing = undefined;
     form = blank();
+    pristine = JSON.stringify(form);
     error = null;
   }
 
@@ -260,54 +271,105 @@
     title={editing ? `Edit ${editing.name}` : 'New settings'}
     onclose={cancel}
     testid="preset-dialog"
+    {dirty}
   >
     {#if editing !== undefined}
-      <form class="space-y-3" onsubmit={submit} novalidate>
+      <form class="space-y-4 w-[34rem] max-w-full" onsubmit={submit} novalidate>
+        <label class="label">
+          <span class="label-text">Name</span>
+          <input class="input w-72" type="text" bind:value={form.name} aria-label="Preset name" />
+        </label>
 
-    <div class="flex flex-wrap gap-3">
-      <label class="label">
-        <span class="label-text">Name</span>
-        <input class="input w-56" type="text" bind:value={form.name} aria-label="Preset name" />
-      </label>
-      <label class="label">
-        <span class="label-text">Voltage (V)</span>
-        <input class="input w-32" type="number" step="0.001" min="0" bind:value={form.volt} aria-label="Voltage" />
-      </label>
-      <label class="label">
-        <span class="label-text">Current limit (A)</span>
-        <input class="input w-32" type="number" step="0.001" min="0" bind:value={form.curr_limit} aria-label="Current limit" />
-      </label>
-    </div>
+        <!-- Paired, because voltage and its current limit describe one output. -->
+        <div class="flex flex-wrap gap-4">
+          <label class="label">
+            <span class="label-text">Voltage (V)</span>
+            <input class="input w-32" type="number" step="0.001" min="0" bind:value={form.volt} aria-label="Voltage" />
+          </label>
+          <label class="label">
+            <span class="label-text">Current limit (A)</span>
+            <input class="input w-32" type="number" step="0.001" min="0" bind:value={form.curr_limit} aria-label="Current limit" />
+          </label>
+        </div>
 
-    <div class="flex flex-wrap gap-3 items-end">
-      <label class="label">
-        <span class="label-text">OVP level (V)</span>
-        <input class="input w-32" type="number" step="0.001" min="0" bind:value={form.ovp_level} aria-label="OVP level" />
-      </label>
-      <label class="flex items-center gap-2 text-sm pb-2">
-        <input class="checkbox" type="checkbox" bind:checked={form.ovp_enabled} />
-        <span>Enable OVP</span>
-      </label>
-      <label class="label">
-        <span class="label-text">OCP level (A)</span>
-        <input class="input w-32" type="number" step="0.001" min="0" bind:value={form.ocp_level} aria-label="OCP level" />
-      </label>
-      <label class="flex items-center gap-2 text-sm pb-2">
-        <input class="checkbox" type="checkbox" bind:checked={form.ocp_enabled} />
-        <span>Enable OCP</span>
-      </label>
-    </div>
+        <hr class="hr" />
 
-    <hr class="hr" />
+        <!--
+          Each protection is one setting: a threshold and whether it is armed.
+          Split across two rows they read as two unrelated controls, and the
+          level sat there looking active while switched off.
+        -->
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="flex items-center gap-2 text-sm w-56">
+              <input class="checkbox" type="checkbox" bind:checked={form.ovp_enabled} />
+              <span>Over-voltage protection</span>
+            </label>
+            <input
+              class="input w-32 {form.ovp_enabled ? '' : 'opacity-50'}"
+              type="number"
+              step="0.001"
+              min="0"
+              aria-label="OVP level"
+              disabled={!form.ovp_enabled}
+              bind:value={form.ovp_level}
+            />
+            <span class="text-xs opacity-60">V</span>
+            {#if ovpTooLow}
+              <span class="text-xs preset-tonal-warning px-2 py-1 rounded" data-testid="ovp-too-low">
+                Must be at least {form.volt} V, or it trips as the rail comes up
+              </span>
+            {/if}
+          </div>
 
-    <div class="flex gap-2">
-      <button class="btn preset-filled" type="submit" disabled={busy || !form.name}>
-        {editing ? 'Save settings' : 'Add settings'}
-      </button>
-      <button class="btn preset-tonal" type="button" onclick={cancel} disabled={busy}>
-        Cancel
-      </button>
-    </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="flex items-center gap-2 text-sm w-56">
+              <input class="checkbox" type="checkbox" bind:checked={form.ocp_enabled} />
+              <span>Over-current protection</span>
+            </label>
+            <input
+              class="input w-32 {form.ocp_enabled ? '' : 'opacity-50'}"
+              type="number"
+              step="0.001"
+              min="0"
+              aria-label="OCP level"
+              disabled={!form.ocp_enabled}
+              bind:value={form.ocp_level}
+            />
+            <span class="text-xs opacity-60">A</span>
+            {#if ocpTooLow}
+              <span class="text-xs preset-tonal-warning px-2 py-1 rounded">
+                Must be at least {form.curr_limit} A
+              </span>
+            {/if}
+          </div>
+        </div>
+
+        {#if editing && (usage.get(editing.id) ?? []).length > 0}
+          <!-- Editing a preset changes every profile using it, which is worth
+               knowing at the moment you change it. -->
+          <p class="text-xs opacity-70" data-testid="preset-usage">
+            Used by {(usage.get(editing.id) ?? []).join(', ')} — saving changes what
+            those profiles apply.
+          </p>
+        {/if}
+
+        <!-- Sticky: with the form scrolled, the action it exists for was off
+             the bottom of the dialog. -->
+        <div
+          class="sticky bottom-0 -mb-1 flex gap-2 pt-3 pb-1 bg-surface-50-950 border-t border-surface-200-800"
+        >
+          <button
+            class="btn preset-filled"
+            type="submit"
+            disabled={busy || !form.name || ovpTooLow || ocpTooLow}
+          >
+            {editing ? 'Save settings' : 'Add settings'}
+          </button>
+          <button class="btn preset-tonal" type="button" onclick={cancel} disabled={busy}>
+            Cancel
+          </button>
+        </div>
       </form>
     {/if}
   </FormDialog>

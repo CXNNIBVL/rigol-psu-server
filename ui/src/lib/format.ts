@@ -70,6 +70,30 @@ export function trim(value: number, unit: string): string {
   return `${text} ${unit}`;
 }
 
+/**
+ * Whether a rail has hit its current limit and given up voltage to hold it.
+ *
+ * A supply runs in constant *voltage* until the load asks for more current than
+ * it is allowed to give; then it holds the current and lets the voltage fall.
+ * Both numbers are already on screen, but reading the relationship off them is
+ * arithmetic — and on a bench this is one of the few states that means *act
+ * now*, because the board is browning out.
+ *
+ * Deliberately requires both halves. Current at the limit with the voltage
+ * still held is a rail sitting exactly at its budget, which is fine.
+ */
+export function isCurrentLimited(channel: ChannelView): boolean {
+  if (channel.output_on !== true) return false;
+  const { measurement, setpoint } = channel;
+  if (!measurement || !setpoint) return false;
+
+  // 5 mA of the limit, and at least 50 mV of sag: loose enough for a real
+  // instrument's rounding, tight enough not to fire on a healthy rail.
+  const atLimit = measurement.curr >= setpoint.curr_limit - 0.005;
+  const sagging = measurement.volt <= setpoint.volt - 0.05;
+  return atLimit && sagging;
+}
+
 /** Whether a channel has any live knowledge behind it. */
 export function isKnown(channel: ChannelView): boolean {
   return channel.measurement !== null;

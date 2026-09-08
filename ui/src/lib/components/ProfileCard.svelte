@@ -14,22 +14,27 @@
     stateDetail,
     stateLabel,
   } from '../profile-state';
-  import { reading, trim, UNKNOWN } from '../format';
+  import { isCurrentLimited, reading, trim, UNKNOWN } from '../format';
   import ActionIcon from './ActionIcon.svelte';
   import PowerButton from './PowerButton.svelte';
 
   let {
     profile,
     devices,
+    compact = false,
     onchange,
     onedit,
     ondelete,
+    onexpand,
   }: {
     profile: DeviceProfile;
     devices: DeviceView[];
+    /** Collapsed to a single row: an idle profile is mostly dashes expanded. */
+    compact?: boolean;
     onchange?: () => void;
     onedit?: () => void;
     ondelete?: () => void;
+    onexpand?: () => void;
   } = $props();
 
   let error = $state<string | null>(null);
@@ -133,6 +138,21 @@
     attached to the rail above it, it read as "this rail waits", which is the
     opposite of what happens.
   -->
+  {#if compact}
+    <!-- One line: an idle profile expanded is a table of dashes. -->
+    <button
+      class="flex w-full items-center gap-3 text-left text-sm opacity-80 hover:opacity-100"
+      type="button"
+      onclick={() => onexpand?.()}
+      data-testid="expand-profile"
+    >
+      <span class="opacity-60">
+        {profile.bindings.map((b) => `${b.slot}·${b.channel}`).join(', ')}
+      </span>
+      <span class="grow"></span>
+      <span class="text-xs opacity-50">Show rails</span>
+    </button>
+  {:else}
   <ol class="space-y-0 text-sm" data-testid="profile-sequence">
     <li class="flex items-baseline gap-3 text-xs opacity-50">
       <span class="w-4"></span>
@@ -141,6 +161,7 @@
       <span class="grow"></span>
       <span class="w-24 text-right">Voltage</span>
       <span class="w-24 text-right">Current</span>
+      <span class="w-10"></span>
     </li>
     {#each rails as { binding, channel }, index (binding.id)}
       <li class="flex items-baseline gap-3 py-1" data-testid="rail-{binding.id}">
@@ -161,6 +182,17 @@
         <span class="reading w-24 text-right tabular-nums" data-testid="rail-curr">
           {channel ? reading(channel, 'curr') : UNKNOWN}
         </span>
+        <span class="w-10">
+          {#if channel && isCurrentLimited(channel)}
+            <span
+              class="badge preset-tonal-warning text-xs"
+              title="At its current limit — the voltage is falling because the load wants more than this rail allows."
+              data-testid="rail-cc"
+            >
+              CC
+            </span>
+          {/if}
+        </span>
       </li>
       {#if binding.delay_ms > 0 && index < rails.length - 1}
         <li class="flex items-center gap-3 pl-4 text-xs opacity-50" aria-hidden="true">
@@ -170,6 +202,7 @@
       {/if}
     {/each}
   </ol>
+  {/if}
 
   <div class="flex flex-wrap items-center gap-2">
     <button
@@ -201,13 +234,6 @@
       onclick={() => (confirmingCycle = true)}
     />
 
-    {#if cannotToggle}
-      <!-- Shown only when the control is genuinely blocked. Keyed on `!staged`
-           it also appeared for rails that are on at the wrong values, where
-           switching off is exactly what you want and is available. -->
-      <span class="text-xs opacity-60">Apply the setpoints before powering on</span>
-    {/if}
-
     <span class="grow"></span>
     <!-- Inside the card, because they act on it. -->
     <ActionIcon
@@ -223,6 +249,15 @@
       onclick={() => ondelete?.()}
     />
   </div>
+
+  {#if cannotToggle}
+    <!-- On its own line: inside the action row it made this card's controls a
+         different width from every other card's, so the column of power buttons
+         did not line up. Shown only when the control is genuinely blocked —
+         keyed on `!staged` it also appeared for rails that are on at the wrong
+         values, where switching off is exactly what you want and is available. -->
+    <p class="text-xs opacity-60">Apply the setpoints before powering on</p>
+  {/if}
 
   {#if confirmingCycle}
     <div

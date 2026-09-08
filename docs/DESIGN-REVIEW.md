@@ -856,6 +856,52 @@ asserting exclusive ownership has to account for that.
 
 ---
 
+## 22. Constant current, pinned profiles, and the edit views
+
+### A rail in current limit now says so
+
+A profile card showed `12 V / 1 A` specified and `10.000 V / 1.000 A` measured
+and left the reader to notice the relationship. That relationship is constant
+current: the load asked for more than the rail allows, so the supply held the
+current and let the voltage collapse. On a bench it is one of the few readings
+that means *act now* — the board is browning out — and both numbers were already
+on screen.
+
+Named on the bench row and on the profile rail with a **CC** badge. It requires
+both halves: current at the limit with the voltage still held is a rail sitting
+exactly at its budget, which is fine.
+
+### Live profiles are pinned, idle ones collapse
+
+Alphabetical order scattered powered profiles between inert ones, so with enough
+of them a device that is actually energised scrolls off the page. Live profiles
+now sit in their own group **outside the scrolling region** — not merely first,
+since first still scrolls away — and idle ones collapse to a single row that
+expands on request.
+
+The action row stays on a collapsed card. Applying is the main thing you do to
+an idle profile, so hiding it behind an expand would have defeated the point.
+
+### The edit views
+
+- **Closing an edited form asks first.** Escape used to discard several rails of
+  work in silence. Only when there is something to lose: a confirmation on an
+  untouched form is an obstacle.
+- **The commit is sticky.** With two rails, `Save profile` was below the fold —
+  the action the dialog exists for, reachable only by scrolling past everything.
+- **Each protection is one row.** `OVP level` and `Enable OVP` on separate lines
+  read as two unrelated controls, and the level looked active while switched
+  off. Now a checkbox, its threshold, and the threshold disabled when unarmed.
+- **The trip-point rule shows while you type**, rather than after submitting.
+- **Editing settings says what it will affect** — the profiles using them.
+- **The dwell sits between the rails it separates**, as the card draws it. Inside
+  rail N's own block it read as "this rail waits", the opposite of what happens.
+  A last rail has no dwell field, because a pause after the end does nothing.
+- Dropdown precision trimmed, and both dialogs given a width their content fits
+  rather than sizing to whatever wrapped.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

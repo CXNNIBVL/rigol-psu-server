@@ -7,6 +7,7 @@
   import FormDialog from './FormDialog.svelte';
   import SearchBox from './SearchBox.svelte';
   import EmptyState from './EmptyState.svelte';
+  import { profileState } from '../profile-state';
 
   let { devices }: { devices: DeviceView[] } = $props();
 
@@ -20,9 +21,25 @@
   let query = $state('');
   const empty = $derived(loaded && profiles.length === 0);
 
+  // Idle profiles the user has opened by hand; live ones are always open.
+  let expanded = $state(new Set<number>());
+
+  // Reported by the editor: the form owns this state.
+  let editorDirty = $state(false);
+
   // Matches the profile's own words and the rails it names, so "psu2" or "3v3"
   // finds the devices that use them — which is how you look for a profile when
   // you remember the hardware but not the name.
+  /**
+   * Live profiles first, and always fully visible.
+   *
+   * Alphabetical order scattered the powered ones between inert ones, so with
+   * enough profiles a device that is actually energised scrolls off the page —
+   * which is the one thing that must not happen on a bench.
+   */
+  const isLive = (p: DeviceProfile) =>
+    ['powered', 'partly-powered', 'live-altered'].includes(profileState(p, devices));
+
   const shown = $derived(
     profiles.filter((profile) => {
       const needle = query.trim().toLowerCase();
@@ -57,6 +74,9 @@
     editing = undefined;
     await refresh();
   }
+
+  const live = $derived(shown.filter(isLive));
+  const idle = $derived(shown.filter((p) => !isLive(p)));
 
   async function remove(profile: DeviceProfile) {
     try {
@@ -104,6 +124,7 @@
     title={editing ? `Edit ${editing.name}` : 'New profile'}
     onclose={() => (editing = undefined)}
     testid="profile-dialog"
+    dirty={editorDirty}
   >
     <!--
       Mounted only while the dialog is open, so every open starts from a fresh
@@ -113,7 +134,12 @@
       complete with the profile just saved.
     -->
     {#if editing !== undefined}
-      <ProfileEditor {devices} profile={editing} ondone={done} />
+      <ProfileEditor
+        {devices}
+        profile={editing}
+        ondone={done}
+        ondirty={(d) => (editorDirty = d)}
+      />
     {/if}
   </FormDialog>
 
@@ -137,16 +163,51 @@
   <!-- A list rather than a grid: profiles vary in length, and forcing them into
        columns produced rows of wildly different heights. Scrolls within itself
        so the search box stays reachable however many there are. -->
-  <div class="space-y-3 max-h-[calc(100vh-16rem)] overflow-y-auto pr-1">
-    {#each shown as profile (profile.id)}
-      <ProfileCard
-        {profile}
-        {devices}
-        onchange={refresh}
-        onedit={() => (editing = profile)}
-        ondelete={() => (confirming = profile)}
-      />
-    {/each}
+  <div class="space-y-4">
+    <!-- Outside the scrolling region on purpose: a powered device must not be
+         something you have to scroll to find. Only the idle list scrolls. -->
+    {#if live.length > 0}
+      <div class="space-y-3" data-testid="live-profiles">
+        <h3 class="text-xs opacity-60">
+          Live &mdash; {live.length} of {shown.length}
+        </h3>
+        {#each live as profile (profile.id)}
+          <ProfileCard
+            {profile}
+            {devices}
+            onchange={refresh}
+            onedit={() => (editing = profile)}
+            ondelete={() => (confirming = profile)}
+          />
+        {/each}
+      </div>
+    {/if}
+
+    {#if idle.length > 0}
+      <div
+        class="space-y-2 max-h-[calc(100vh-22rem)] overflow-y-auto pr-1"
+        data-testid="idle-profiles"
+      >
+        {#if live.length > 0}
+          <h3 class="text-xs opacity-60">Idle</h3>
+        {/if}
+        {#each idle as profile (profile.id)}
+          <ProfileCard
+            {profile}
+            {devices}
+            compact={!expanded.has(profile.id)}
+            onchange={refresh}
+            onedit={() => (editing = profile)}
+            ondelete={() => (confirming = profile)}
+            onexpand={() => {
+              const next = new Set(expanded);
+              next.add(profile.id);
+              expanded = next;
+            }}
+          />
+        {/each}
+      </div>
+    {/if}
   </div>
 
   {#if confirming}

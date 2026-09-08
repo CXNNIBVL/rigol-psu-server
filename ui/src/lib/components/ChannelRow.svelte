@@ -4,6 +4,7 @@
     canEnergise,
     channelBadge,
     channelPresentation,
+    isCurrentLimited,
     isWritable,
     reading,
     trim,
@@ -158,6 +159,15 @@
   </td>
   <td class="reading py-2 px-3 text-right tabular-nums" data-testid="curr">
     {reading(channel, 'curr')}
+    {#if isCurrentLimited(channel)}
+      <span
+        class="badge preset-tonal-warning text-xs ml-1 align-middle"
+        title="At its current limit — the supply is holding {channel.setpoint?.curr_limit.toFixed(3)} A and letting the voltage fall. The load wants more than this rail allows."
+        data-testid="current-limited"
+      >
+        CC
+      </span>
+    {/if}
   </td>
   <td class="reading py-2 px-3 text-right tabular-nums" data-testid="power">
     {reading(channel, 'power')}

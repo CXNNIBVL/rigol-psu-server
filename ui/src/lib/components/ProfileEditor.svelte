@@ -8,6 +8,7 @@
     type NewBinding,
   } from '../api';
   import { channelChoices, exceedsLimits, findChannel } from '../bench-info';
+  import { trim } from '../format';
   import ActionIcon from './ActionIcon.svelte';
   import ChannelPicker from './ChannelPicker.svelte';
   import type { ChannelPreset, DeviceProfile, DeviceView } from '../types';
@@ -16,10 +17,12 @@
     devices,
     profile = null,
     ondone,
+    ondirty,
   }: {
     devices: DeviceView[];
     profile?: DeviceProfile | null;
     ondone?: () => void;
+    ondirty?: (dirty: boolean) => void;
   } = $props();
 
   let presets = $state<ChannelPreset[]>([]);
@@ -44,6 +47,15 @@
   );
   let error = $state<string | null>(null);
   let busy = $state(false);
+
+  // svelte-ignore state_referenced_locally
+  const pristine = JSON.stringify({ name, description, bindings });
+  const dirty = $derived(
+    JSON.stringify({ name, description, bindings }) !== pristine,
+  );
+  // Reported upward rather than mirrored: the form owns this state, and a copy
+  // in the panel would be one more thing to keep in step.
+  $effect(() => ondirty?.(dirty));
 
   // Inline preset creation. Without this, needing a preset that does not exist
   // yet means leaving the editor and losing the profile in progress — a dead
@@ -175,7 +187,12 @@
   }
 </script>
 
-<form class="space-y-4" onsubmit={submit} novalidate data-testid="profile-editor">
+<form
+  class="space-y-4 w-[52rem] max-w-full"
+  onsubmit={submit}
+  novalidate
+  data-testid="profile-editor"
+>
   <div class="flex flex-wrap gap-4">
     <label class="label">
       <span class="label-text">Name</span>
@@ -291,22 +308,11 @@
             >
               {#each presets as preset (preset.id)}
                 <option value={preset.id}>
-                  {preset.name} ({preset.volt.toFixed(3)} V)
+                  {preset.name} ({trim(preset.volt, 'V')})
                 </option>
               {/each}
               <option value="__new">New settings…</option>
             </select>
-          </label>
-
-          <label class="label w-28">
-            <span class="label-text text-xs">Dwell (ms)</span>
-            <input
-              class="input"
-              type="number"
-              min="0"
-              aria-label="Rail {index + 1} dwell"
-              bind:value={bindings[index]!.delay_ms}
-            />
           </label>
 
           <label class="flex items-center gap-2 text-sm pb-2">
@@ -366,6 +372,26 @@
           </p>
         {/if}
       </div>
+
+      {#if index < bindings.length - 1}
+        <!--
+          Between the two rails it separates, as the card draws it. Inside rail
+          N's own block it read as "this rail waits", which is the opposite of
+          what happens.
+        -->
+        <label class="flex items-center gap-2 pl-4 text-xs opacity-70">
+          <span class="border-l border-surface-300-700 h-4"></span>
+          <span>then wait</span>
+          <input
+            class="input w-20 text-right"
+            type="number"
+            min="0"
+            aria-label="Rail {index + 1} dwell"
+            bind:value={bindings[index]!.delay_ms}
+          />
+          <span>ms before rail {index + 2}</span>
+        </label>
+      {/if}
     {/each}
   </div>
 
@@ -375,9 +401,11 @@
     </p>
   {/if}
 
-  <hr class="hr" />
-
-  <div class="flex gap-2">
+  <!-- Sticky: with two rails the action this form exists for was below the
+       fold, reachable only by scrolling past everything. -->
+  <div
+    class="sticky bottom-0 -mb-1 flex gap-2 pt-3 pb-1 bg-surface-50-950 border-t border-surface-200-800"
+  >
     <button
       class="btn preset-filled"
       type="submit"

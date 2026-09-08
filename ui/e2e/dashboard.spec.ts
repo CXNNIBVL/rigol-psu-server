@@ -298,8 +298,8 @@ test.describe('authoring', () => {
     await startCreating(page, 'preset');
     await expect(page.getByTestId('preset-dialog')).toBeVisible();
     await page.getByLabel('Preset name').fill(`core ${stamp}`);
-    await page.getByLabel('Voltage').fill('1.2');
-    await page.getByLabel('Current limit').fill('1.0');
+    await page.getByLabel('Voltage', { exact: true }).fill('1.2');
+    await page.getByLabel('Current limit', { exact: true }).fill('1.0');
     await page.getByTestId('preset-dialog').getByRole('button', { name: 'Add settings' }).click();
     await expect(page.getByTestId('preset-dialog')).toBeHidden();
     await expect(page.getByTestId('presets-panel')).toContainText(`core ${stamp}`);
@@ -312,7 +312,6 @@ test.describe('authoring', () => {
     await page.getByRole('button', { name: 'Add rail' }).click();
     // A channel no other test claims, so ownership here is unambiguous.
     await page.getByRole('radio', { name: 'Simulated supply 2 CH2' }).click();
-    await page.getByLabel('Rail 1 dwell').fill('40');
     await page.getByTestId('profile-dialog').getByRole('button', { name: 'Create profile' }).click();
     await expect(page.getByTestId('profile-dialog')).toBeHidden();
 
@@ -337,8 +336,8 @@ test.describe('authoring', () => {
     await page.getByTestId('nav-presets').click();
     await startCreating(page, 'preset');
     await page.getByLabel('Preset name').fill(`too much ${stamp}`);
-    await page.getByLabel('Voltage').fill('12');
-    await page.getByLabel('Current limit').fill('1.0');
+    await page.getByLabel('Voltage', { exact: true }).fill('12');
+    await page.getByLabel('Current limit', { exact: true }).fill('1.0');
     await page.getByTestId('preset-dialog').getByRole('button', { name: 'Add settings' }).click();
 
     await page.getByTestId('nav-profiles').click();
@@ -346,7 +345,7 @@ test.describe('authoring', () => {
     await page.getByLabel('Profile name').fill(`Doomed ${stamp}`);
     await page.getByRole('button', { name: 'Add rail' }).click();
     await page.getByRole('radio', { name: 'Simulated supply 1 CH3' }).click();
-    await page.getByLabel('Rail 1 preset').selectOption({ label: `too much ${stamp} (12.000 V)` });
+    await page.getByLabel('Rail 1 preset').selectOption({ label: `too much ${stamp} (12 V)` });
 
     await expect(page.getByTestId('binding-warning-0')).toContainText('exceeds');
     await expect(page.getByRole('button', { name: 'Create profile' })).toBeDisabled();
@@ -610,12 +609,12 @@ test.describe('lists', () => {
 
     await startCreating(page, 'preset');
     await page.getByLabel('Preset name').fill(`First ${stamp}`);
-    await page.getByLabel('Voltage').fill('4.2');
+    await page.getByLabel('Voltage', { exact: true }).fill('4.2');
     await page.getByTestId('preset-dialog').getByRole('button', { name: 'Add settings' }).click();
 
     await startCreating(page, 'preset');
     await expect(page.getByLabel('Preset name')).toHaveValue('');
-    await expect(page.getByLabel('Voltage')).toHaveValue('0');
+    await expect(page.getByLabel('Voltage', { exact: true })).toHaveValue('0');
   });
 
   test('the channel picker is laid out like the rack', async ({ page }) => {
@@ -858,6 +857,8 @@ test.describe('lists', () => {
 
     await open(page, 'profiles');
     const card = page.getByTestId(`profile-${profileId}`);
+    // Idle profiles are collapsed to a row; open this one to read its rails.
+    await card.getByTestId('expand-profile').click();
     const sequence = card.getByTestId('profile-sequence');
 
     // Idle: a dash rather than a fabricated zero, same rule as the bench.
@@ -907,5 +908,85 @@ test.describe('lists', () => {
       if (width) widths.add(width);
     }
     expect([...widths]).toEqual(['3px']);
+  });
+
+  test('closing an edited form asks before discarding', async ({ page }) => {
+    // Escape used to throw away several rails of work in silence.
+    await open(page, 'profiles');
+    await startCreating(page, 'profile');
+    await page.getByLabel('Profile name').fill('Half-finished');
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('confirm-discard')).toBeVisible();
+    await page.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(page.getByLabel('Profile name')).toHaveValue('Half-finished');
+
+    await page.keyboard.press('Escape');
+    await page.getByTestId('confirm-discard-yes').click();
+    await expect(page.getByTestId('profile-dialog')).toBeHidden();
+  });
+
+  test('an untouched form closes without asking', async ({ page }) => {
+    // A confirmation on a form nobody edited is just an obstacle.
+    await open(page, 'profiles');
+    await startCreating(page, 'profile');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('profile-dialog')).toBeHidden();
+  });
+
+  test('settings warn while typing when a trip point is too low', async ({ page }) => {
+    // The server refuses this; saying so as you type beats saying it after you
+    // submit.
+    await open(page, 'presets');
+    await startCreating(page, 'preset');
+    await page.getByLabel('Preset name').fill(`low ${Date.now()}`);
+    await page.getByLabel('Voltage', { exact: true }).fill('5');
+    // The level is unavailable until the protection is armed — it is one
+    // setting, not two.
+    await expect(page.getByLabel('OVP level')).toBeDisabled();
+    await page.getByLabel('Over-voltage protection').check();
+    await page.getByLabel('OVP level').fill('4');
+
+    await expect(page.getByTestId('ovp-too-low')).toBeVisible();
+    await expect(
+      page.getByTestId('preset-dialog').getByRole('button', { name: 'Add settings' }),
+    ).toBeDisabled();
+
+    await page.getByLabel('OVP level').fill('5.5');
+    await expect(page.getByTestId('ovp-too-low')).toHaveCount(0);
+  });
+
+  test('a live profile stays visible while the idle ones scroll', async ({ page }) => {
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `pin ${stamp}`, volt: 2, curr_limit: 1,
+        ovp_level: 3, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    const created = await page.request.post('/api/profiles', {
+      data: {
+        name: `Pinned ${stamp}`, description: '',
+        bindings: [{
+          slot: 'psu3', channel: 'CH2', preset_id: (await preset.json()).id,
+          sequence_order: 1, delay_ms: 0, output_on: true,
+        }],
+      },
+    });
+    const profileId = (await created.json()).id;
+    await page.request.post(`/api/profiles/${profileId}/apply`);
+    await page.request.post(`/api/profiles/${profileId}/power-on`);
+
+    await open(page, 'profiles');
+    const live = page.getByTestId('live-profiles');
+    await expect(live).toContainText(`Pinned ${stamp}`, { timeout: 10_000 });
+
+    // Powered profiles sit outside the scrolling region, so scrolling the idle
+    // list cannot take a live device off the page.
+    await page.getByTestId('idle-profiles').evaluate((el) => el.scrollTo(0, 5000));
+    await expect(live).toBeVisible();
+    await expect(live).toContainText(`Pinned ${stamp}`);
+
+    await powerOffProfile(page, profileId);
   });
 });
