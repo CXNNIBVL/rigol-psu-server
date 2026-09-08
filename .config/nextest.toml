@@ -1,0 +1,47 @@
+# cargo-nextest configuration.
+#
+# Nextest runs each test in its own process, which matters here: the simulator
+# and (later) the per-supply actors hold locks and spawn tasks, and one wedged
+# test should not be able to hang or corrupt the rest of the run.
+
+[profile.default]
+# Report every failure in a run rather than stopping at the first. When a change
+# breaks the SCPI codec it tends to break several tests at once, and seeing all
+# of them is faster than fixing them one round-trip at a time.
+fail-fast = false
+
+# No retries. Every test in the default set runs against the simulator, so it is
+# deterministic by construction — a flaky one is a real bug, and retrying would
+# hide exactly the race conditions the actor model is most likely to grow.
+retries = 0
+
+# Nothing here talks to hardware, so a test that runs for seconds is stuck.
+slow-timeout = { period = "5s", terminate-after = 4 }
+
+status-level = "fail"
+final-status-level = "slow"
+
+# Tests named `hw_*` require a real DP832 on the bench and are excluded from
+# ordinary runs. See the `hardware` profile below.
+default-filter = 'not test(/^hw_/)'
+
+[profile.ci]
+fail-fast = false
+retries = 0
+failure-output = "immediate-final"
+status-level = "retry"
+final-status-level = "flaky"
+
+[profile.ci.junit]
+path = "junit.xml"
+
+# Run with `cargo nextest run --profile hardware` on the lab PC, with the
+# supplies attached. These are the tests that settle the open risks in §11 of
+# the plan: lock release behaviour, sustained poll rate, and usbtmc timeout and
+# disconnect semantics on the target kernel.
+[profile.hardware]
+default-filter = 'test(/^hw_/)'
+fail-fast = false
+retries = 0
+slow-timeout = { period = "30s", terminate-after = 4 }
+status-level = "all"

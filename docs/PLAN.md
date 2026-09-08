@@ -93,6 +93,7 @@ of one PSU is 3 queries, not 9.
 | Operator config | Root-owned `config.toml` |
 | Logging | `tracing` → journald |
 | Build orchestration | `justfile` |
+| Test runner | `cargo-nextest` (process-per-test); `cargo test --doc` for doctests |
 
 ### 3.1 Rejected alternatives
 
@@ -530,6 +531,32 @@ Cross-compiled locally for `x86_64-unknown-linux-gnu` and scp'd to the target. T
 Svelte bundle is embedded via `rust-embed`, so deployment is a **single binary** with
 no runtime asset paths to get wrong, plus `config.toml`, the udev rule and the systemd
 unit.
+
+---
+
+### 15.1 Testing
+
+Tests run under **`cargo-nextest`**, configured in `.config/nextest.toml`.
+Process-per-test isolation matters here: the simulator holds locks and the
+per-supply actors spawn tasks, so one wedged test must not be able to hang or
+corrupt the rest of the run.
+
+Three profiles:
+
+- **`default`** — everything that runs against the simulator. No retries, on the
+  grounds that these tests are deterministic by construction and a flaky one is a
+  real bug; retrying would hide exactly the races the actor model is most likely
+  to grow. A 5 s slow-timeout catches deadlocks, since nothing in this set should
+  take more than milliseconds.
+- **`ci`** — same set, with JUnit output.
+- **`hardware`** — tests named `hw_*`, excluded from every other profile by
+  `default-filter`. These need real DP832s and run on the lab PC. This is where
+  the §11 open risks get settled: lock release behaviour including the `SIGKILL`
+  case, sustained poll rate under concurrent command traffic, and `usbtmc`
+  timeout and disconnect semantics on the target kernel.
+
+Note that **nextest does not run doctests** — `just test-doc` covers those
+separately, and `just test-all` runs both.
 
 ---
 
