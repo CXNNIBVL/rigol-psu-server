@@ -887,8 +887,19 @@ an idle profile, so hiding it behind an expand would have defeated the point.
 - **Closing an edited form asks first.** Escape used to discard several rails of
   work in silence. Only when there is something to lose: a confirmation on an
   untouched form is an obstacle.
-- **The commit is sticky.** With two rails, `Save profile` was below the fold —
-  the action the dialog exists for, reachable only by scrolling past everything.
+- **The commit sits outside the scrolling region.** With two rails, `Save
+  profile` was below the fold — the action the dialog exists for, reachable only
+  by scrolling past everything. Sticking it to the bottom of the scroll area
+  was the first attempt and looked it: the background band ran under the
+  scrollbar gutter and cut across whatever it overlapped. The dialog owns a
+  footer now, and the forms' submit buttons reach their form by `id`.
+
+  The footer is handed the same guarded close that Escape uses, so its Cancel
+  cannot quietly skip the unsaved-changes prompt — which it did, briefly, and
+  Cancel is the likeliest way to lose work.
+- **Voltage and its current limit pair up.** They describe one output, but
+  Skeleton's `label` utility is `width: 100%`, so a flex row wrapped them onto
+  separate lines however wide the dialog was. A grid bounds them.
 - **Each protection is one row.** `OVP level` and `Enable OVP` on separate lines
   read as two unrelated controls, and the level looked active while switched
   off. Now a checkbox, its threshold, and the threshold disabled when unarmed.

@@ -989,4 +989,33 @@ test.describe('lists', () => {
 
     await powerOffProfile(page, profileId);
   });
+
+  test('cancel respects the unsaved guard, like escape does', async ({ page }) => {
+    // The footer sits outside the form now; its Cancel gets the same guarded
+    // close as Escape rather than a shortcut past it.
+    await open(page, 'profiles');
+    await startCreating(page, 'profile');
+    await page.getByLabel('Profile name').fill('Half-finished');
+
+    await page.getByTestId('profile-dialog').getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByTestId('confirm-discard')).toBeVisible();
+    await page.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(page.getByLabel('Profile name')).toHaveValue('Half-finished');
+
+    await page.keyboard.press('Escape');
+    await page.getByTestId('confirm-discard-yes').click();
+    await expect(page.getByTestId('profile-dialog')).toBeHidden();
+  });
+
+  test('voltage and its current limit sit side by side', async ({ page }) => {
+    // Skeleton's `label` is width:100%, so a flex row wrapped them onto
+    // separate lines however wide the dialog was.
+    await open(page, 'presets');
+    await startCreating(page, 'preset');
+
+    const volt = await page.getByLabel('Voltage', { exact: true }).boundingBox();
+    const curr = await page.getByLabel('Current limit', { exact: true }).boundingBox();
+    expect(volt!.y).toBeCloseTo(curr!.y, 0);
+    expect(curr!.x).toBeGreaterThan(volt!.x);
+  });
 });

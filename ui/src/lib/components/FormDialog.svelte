@@ -15,6 +15,7 @@
     title,
     onclose,
     children,
+    footer,
     testid,
     dirty = false,
   }: {
@@ -22,6 +23,12 @@
     title: string;
     onclose: () => void;
     children: Snippet;
+    /**
+     * Actions, kept out of the scrolling region rather than stuck over it.
+     * Handed the same guarded close that Escape and the close control use, so
+     * a Cancel button cannot quietly skip it.
+     */
+    footer?: Snippet<[() => void]>;
     testid?: string;
     /** Whether closing would throw away work. */
     dirty?: boolean;
@@ -109,7 +116,18 @@
     </div>
   {/if}
 
-  <div class="max-h-[70vh] overflow-y-auto pr-1">
+  <div class="max-h-[65vh] overflow-y-auto pr-2">
     {@render children()}
   </div>
+
+  {#if footer}
+    <!--
+      Outside the scroll region, not stuck to the bottom of it. As a sticky
+      element inside, its background band ran under the scrollbar gutter and cut
+      across whatever it happened to overlap.
+    -->
+    <footer class="flex gap-2 pt-3 border-t border-surface-200-800">
+      {@render footer(attemptClose)}
+    </footer>
+  {/if}
 </dialog>

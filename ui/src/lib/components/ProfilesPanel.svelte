@@ -24,8 +24,10 @@
   // Idle profiles the user has opened by hand; live ones are always open.
   let expanded = $state(new Set<number>());
 
-  // Reported by the editor: the form owns this state.
+  // Reported by the editor: the form owns this state, and the dialog's footer
+  // needs both — whether closing would lose work, and whether saving is legal.
   let editorDirty = $state(false);
+  let editorCanSave = $state(false);
 
   // Matches the profile's own words and the rails it names, so "psu2" or "3v3"
   // finds the devices that use them — which is how you look for a profile when
@@ -139,8 +141,23 @@
         profile={editing}
         ondone={done}
         ondirty={(d) => (editorDirty = d)}
+        oncansave={(ok) => (editorCanSave = ok)}
       />
     {/if}
+
+    {#snippet footer(requestClose: () => void)}
+      <button
+        class="btn preset-filled"
+        type="submit"
+        form="profile-form"
+        disabled={!editorCanSave}
+      >
+        {editing ? 'Save profile' : 'Create profile'}
+      </button>
+      <button class="btn preset-tonal" type="button" onclick={requestClose}>
+        Cancel
+      </button>
+    {/snippet}
   </FormDialog>
 
   {#if empty}

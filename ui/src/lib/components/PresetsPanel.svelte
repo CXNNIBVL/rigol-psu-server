@@ -274,21 +274,23 @@
     {dirty}
   >
     {#if editing !== undefined}
-      <form class="space-y-4 w-[34rem] max-w-full" onsubmit={submit} novalidate>
+      <form id="preset-form" class="space-y-4 w-[32rem] max-w-full" onsubmit={submit} novalidate>
         <label class="label">
           <span class="label-text">Name</span>
           <input class="input w-72" type="text" bind:value={form.name} aria-label="Preset name" />
         </label>
 
-        <!-- Paired, because voltage and its current limit describe one output. -->
-        <div class="flex flex-wrap gap-4">
+        <!-- Paired, because voltage and its current limit describe one output.
+             A grid rather than a flex row: Skeleton's `label` is width:100%, so
+             two of them side by side always wrapped. -->
+        <div class="grid grid-cols-2 gap-4">
           <label class="label">
             <span class="label-text">Voltage (V)</span>
-            <input class="input w-32" type="number" step="0.001" min="0" bind:value={form.volt} aria-label="Voltage" />
+            <input class="input" type="number" step="0.001" min="0" bind:value={form.volt} aria-label="Voltage" />
           </label>
           <label class="label">
             <span class="label-text">Current limit (A)</span>
-            <input class="input w-32" type="number" step="0.001" min="0" bind:value={form.curr_limit} aria-label="Current limit" />
+            <input class="input" type="number" step="0.001" min="0" bind:value={form.curr_limit} aria-label="Current limit" />
           </label>
         </div>
 
@@ -354,24 +356,22 @@
           </p>
         {/if}
 
-        <!-- Sticky: with the form scrolled, the action it exists for was off
-             the bottom of the dialog. -->
-        <div
-          class="sticky bottom-0 -mb-1 flex gap-2 pt-3 pb-1 bg-surface-50-950 border-t border-surface-200-800"
-        >
-          <button
-            class="btn preset-filled"
-            type="submit"
-            disabled={busy || !form.name || ovpTooLow || ocpTooLow}
-          >
-            {editing ? 'Save settings' : 'Add settings'}
-          </button>
-          <button class="btn preset-tonal" type="button" onclick={cancel} disabled={busy}>
-            Cancel
-          </button>
-        </div>
       </form>
     {/if}
+
+    {#snippet footer(requestClose: () => void)}
+      <button
+        class="btn preset-filled"
+        type="submit"
+        form="preset-form"
+        disabled={busy || !form.name || ovpTooLow || ocpTooLow}
+      >
+        {editing ? 'Save settings' : 'Add settings'}
+      </button>
+      <button class="btn preset-tonal" type="button" onclick={requestClose} disabled={busy}>
+        Cancel
+      </button>
+    {/snippet}
   </FormDialog>
 
 </section>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import ProfileEditor from '../components/ProfileEditor.svelte';
 import { channel, device } from './fixtures';
@@ -50,13 +50,16 @@ async function ready() {
 }
 
 describe('ProfileEditor', () => {
-  it('cannot be submitted with no rails', async () => {
+  // The commit lives in the dialog's footer now, outside the form, so whether
+  // saving is legal is reported upward rather than read off a button here.
+  it('cannot be saved with no rails', async () => {
     mockApi();
-    render(ProfileEditor, { devices: DEVICES });
+    const oncansave = vi.fn();
+    render(ProfileEditor, { devices: DEVICES, oncansave });
     await ready();
 
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
-    expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
+    expect(oncansave).toHaveBeenLastCalledWith(false);
   });
 
   it('offers only configured channels, grouped by their supply', async () => {
@@ -93,13 +96,14 @@ describe('ProfileEditor', () => {
     // The server would refuse this anyway; catching it here saves building a
     // profile that is guaranteed to fail.
     mockApi();
-    render(ProfileEditor, { devices: DEVICES });
+    const oncansave = vi.fn();
+    render(ProfileEditor, { devices: DEVICES, oncansave });
     await ready();
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
     await userEvent.selectOptions(screen.getByLabelText('Rail 1 preset'), '2');
 
     expect(screen.getByTestId('binding-warning-0')).toHaveTextContent('exceeds');
-    expect(screen.getByRole('button', { name: 'Create profile' })).toBeDisabled();
+    expect(oncansave).toHaveBeenLastCalledWith(false);
   });
 
   it('submits a valid profile with its bindings', async () => {
@@ -110,7 +114,7 @@ describe('ProfileEditor', () => {
 
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+    await fireEvent.submit(screen.getByTestId('profile-editor'));
 
     expect(sent).toMatchObject({
       name: 'Board',
@@ -170,7 +174,7 @@ describe('ProfileEditor', () => {
 
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+    await fireEvent.submit(screen.getByTestId('profile-editor'));
 
     expect(sent.bindings[0].output_on).toBe(true);
   });
@@ -186,7 +190,7 @@ describe('ProfileEditor', () => {
     await userEvent.type(screen.getByLabelText('Profile name'), 'Board');
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
     await userEvent.click(screen.getByLabelText('Rail 1 energise on power-on'));
-    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+    await fireEvent.submit(screen.getByTestId('profile-editor'));
 
     expect(sent.bindings[0].output_on).toBe(false);
   });
@@ -204,7 +208,7 @@ describe('ProfileEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add rail' }));
 
     await userEvent.click(screen.getByLabelText('Move rail 2 earlier'));
-    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+    await fireEvent.submit(screen.getByTestId('profile-editor'));
 
     expect(sent.bindings.map((b: any) => [b.channel, b.sequence_order])).toEqual([
       ['CH2', 1],

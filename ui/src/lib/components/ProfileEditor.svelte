@@ -18,11 +18,14 @@
     profile = null,
     ondone,
     ondirty,
+    oncansave,
   }: {
     devices: DeviceView[];
     profile?: DeviceProfile | null;
     ondone?: () => void;
     ondirty?: (dirty: boolean) => void;
+    /** Whether the form is currently in a state that can be saved. */
+    oncansave?: (canSave: boolean) => void;
   } = $props();
 
   let presets = $state<ChannelPreset[]>([]);
@@ -56,6 +59,9 @@
   // Reported upward rather than mirrored: the form owns this state, and a copy
   // in the panel would be one more thing to keep in step.
   $effect(() => ondirty?.(dirty));
+  $effect(() =>
+    oncansave?.(!busy && !!name && bindings.length > 0 && !hasWarnings),
+  );
 
   // Inline preset creation. Without this, needing a preset that does not exist
   // yet means leaving the editor and losing the profile in progress — a dead
@@ -188,7 +194,8 @@
 </script>
 
 <form
-  class="space-y-4 w-[52rem] max-w-full"
+  id="profile-form"
+  class="space-y-4 w-[48rem] max-w-full"
   onsubmit={submit}
   novalidate
   data-testid="profile-editor"
@@ -401,20 +408,4 @@
     </p>
   {/if}
 
-  <!-- Sticky: with two rails the action this form exists for was below the
-       fold, reachable only by scrolling past everything. -->
-  <div
-    class="sticky bottom-0 -mb-1 flex gap-2 pt-3 pb-1 bg-surface-50-950 border-t border-surface-200-800"
-  >
-    <button
-      class="btn preset-filled"
-      type="submit"
-      disabled={busy || !name || bindings.length === 0 || hasWarnings}
-    >
-      {profile ? 'Save profile' : 'Create profile'}
-    </button>
-    <button class="btn preset-tonal" type="button" onclick={() => ondone?.()} disabled={busy}>
-      Cancel
-    </button>
-  </div>
 </form>
