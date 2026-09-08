@@ -913,6 +913,35 @@ an idle profile, so hiding it behind an expand would have defeated the point.
 
 ---
 
+## 23. Profiles condensed
+
+The profile list filled the window, and inside each rail row a flex spacer
+pushed the measured values to the far edge. So the two numbers that row exists
+to let you compare — what the rail is *meant* to do and what it *is* doing — sat
+as far apart as the layout could put them, on a monitor that made the gap
+1400 px wide.
+
+Now a grid with fixed columns, reading left to right as one comparison:
+
+```
+1  psu1 · CH3   Generic 3V3   3.3 V / 0.5 A   3.300 V   0.330 A
+2  psu1 · CH2   Generic 12V    12 V / 1 A    10.000 V   1.000 A  CC
+```
+
+The section is capped rather than stretched. A profile is a name and a handful
+of rails; across a wide monitor it was mostly gap.
+
+**The bench is deliberately left full width.** Its table really does have seven
+columns of numbers to place, and the same reasoning that condenses one argues
+for leaving the other alone: the width should follow the content, not a rule
+applied evenly.
+
+A first attempt kept a `1fr` on the settings column, which simply reopened the
+gap the spacer had been making. Fixed columns throughout; the row ends where its
+content does.
+
+---
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

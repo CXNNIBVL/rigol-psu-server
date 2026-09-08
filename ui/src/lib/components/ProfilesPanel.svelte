@@ -91,7 +91,14 @@
   }
 </script>
 
-<section class="space-y-4" data-testid="profiles-panel">
+<!--
+  Capped rather than filling the window. A profile is a name and a handful of
+  rails; stretched across a wide monitor it was mostly gap, and the eye had to
+  travel the whole width to get from a rail to its readings. The bench is left
+  full-width on purpose — its table really does have seven columns of numbers
+  to place.
+-->
+<section class="space-y-4 max-w-4xl" data-testid="profiles-panel">
   <div class="flex items-center justify-between gap-2">
     <div>
       <h2 class="h3">Device profiles</h2>

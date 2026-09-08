@@ -154,35 +154,44 @@
     </button>
   {:else}
   <ol class="space-y-0 text-sm" data-testid="profile-sequence">
-    <li class="flex items-baseline gap-3 text-xs opacity-50">
-      <span class="w-4"></span>
-      <span class="w-28 shrink-0">Rail</span>
-      <span class="w-32">Specified</span>
-      <span class="grow"></span>
-      <span class="w-24 text-right">Voltage</span>
-      <span class="w-24 text-right">Current</span>
-      <span class="w-10"></span>
+    <!--
+      A grid, not a flex row with a spacer. The spacer pushed the measured
+      values to the far edge, so the two numbers this row exists to let you
+      compare — specified and actual — sat as far apart as the layout could put
+      them.
+    -->
+    <li class="grid grid-cols-[1.25rem_7rem_minmax(6rem,11rem)_7.5rem_5.5rem_5.5rem_2rem] items-baseline gap-x-3 text-xs opacity-50">
+      <span></span>
+      <span>Rail</span>
+      <span>Settings</span>
+      <span>Specified</span>
+      <span class="text-right">Voltage</span>
+      <span class="text-right">Current</span>
+      <span></span>
     </li>
     {#each rails as { binding, channel }, index (binding.id)}
-      <li class="flex items-baseline gap-3 py-1" data-testid="rail-{binding.id}">
-        <span class="reading text-xs opacity-50 w-4 tabular-nums">{index + 1}</span>
-        <span class="w-28 shrink-0">{binding.slot} · {binding.channel}</span>
-        <span class="reading w-32 tabular-nums">
+      <li
+        class="grid grid-cols-[1.25rem_7rem_minmax(6rem,11rem)_7.5rem_5.5rem_5.5rem_2rem] items-baseline gap-x-3 py-1"
+        data-testid="rail-{binding.id}"
+      >
+        <span class="reading text-xs opacity-50 tabular-nums">{index + 1}</span>
+        <span class="whitespace-nowrap">{binding.slot} · {binding.channel}</span>
+        <span class="text-xs opacity-60 truncate">
+          {binding.preset.name}
+          {#if !binding.output_on}— staged only{/if}
+        </span>
+        <span class="reading tabular-nums">
           {trim(binding.preset.volt, 'V')}
           <span class="opacity-40">/</span>
           {trim(binding.preset.curr_limit, 'A')}
         </span>
-        <span class="grow text-xs opacity-60 truncate">
-          {binding.preset.name}
-          {#if !binding.output_on}— staged only{/if}
-        </span>
-        <span class="reading w-24 text-right tabular-nums" data-testid="rail-volt">
+        <span class="reading text-right tabular-nums" data-testid="rail-volt">
           {channel ? reading(channel, 'volt') : UNKNOWN}
         </span>
-        <span class="reading w-24 text-right tabular-nums" data-testid="rail-curr">
+        <span class="reading text-right tabular-nums" data-testid="rail-curr">
           {channel ? reading(channel, 'curr') : UNKNOWN}
         </span>
-        <span class="w-10">
+        <span>
           {#if channel && isCurrentLimited(channel)}
             <span
               class="badge preset-tonal-warning text-xs"
