@@ -14,7 +14,8 @@ test:
 test-doc:
     cargo test --doc --all-features
 
-# Everything, the way CI runs it.
+# Everything, the way CI runs it. `just` stops at the first failing recipe, so a
+# red suite here cannot be walked past.
 test-all: test test-doc test-ui test-e2e
 
 # Tests that require DP832s attached. Run this on the lab PC.

@@ -464,15 +464,21 @@ test('a live rail and the selected section share one accent', async ({ page }) =
   await page.goto('/');
   const card = page.getByTestId('channel-psu2-CH1');
   await power(card).click();
-  await expect(card).toHaveAttribute('data-state', 'live');
+  // Wait on the button's own state, not the row's: reading the computed style
+  // before the class has flipped picked up the row tint underneath it.
+  await expect(power(card)).toHaveAttribute('data-state', 'on');
 
-  const lit = await power(card).evaluate((el) => getComputedStyle(el).backgroundColor);
   const navIcon = await page
     .getByTestId('nav-bench')
     .locator('svg')
     .evaluate((el) => getComputedStyle(el).color);
 
-  expect(lit).toBe(navIcon);
+  // Polled rather than read once: the button transitions into its lit state, so
+  // a single read lands on an interpolated colour partway there. Both values
+  // come from getComputedStyle, so once settled they serialise identically.
+  await expect
+    .poll(() => power(card).evaluate((el) => getComputedStyle(el).backgroundColor))
+    .toBe(navIcon);
 
   await power(card).click();
 });
