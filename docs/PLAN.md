@@ -86,6 +86,8 @@ of one PSU is 3 queries, not 9.
 | Command API | REST + JSON, OpenAPI spec generated via `utoipa` |
 | Live telemetry | WebSocket, full state snapshots at 2 Hz |
 | Frontend | Svelte SPA (Vite), static build |
+| Component library | Skeleton UI v3 (`@skeletonlabs/skeleton` + `skeleton-svelte`) on Tailwind |
+| Theme | Skeleton's built-in **Cerberus**, applied via `data-theme="cerberus"` |
 | Frontend delivery | Embedded in the binary via `rust-embed`, served on the same port |
 | User data store | SQLite via `rusqlite`, migrations from commit one |
 | Operator config | Root-owned `config.toml` |
@@ -409,7 +411,7 @@ Flagged as risks rather than decisions; each needs real hardware to settle.
 
 ```
 rigol-psu-server/
-├── PLAN.md
+├── README.md
 ├── justfile
 ├── Cargo.toml
 ├── config.example.toml
@@ -418,6 +420,8 @@ rigol-psu-server/
 │   ├── core/               # domain model, clamps, profile apply logic, actors
 │   └── server/             # axum routes, websocket, rust-embed, main
 ├── migrations/             # versioned SQL
+├── docs/
+│   └── PLAN.md             # this document
 ├── ui/                     # Svelte SPA (Vite)
 └── deploy/
     ├── 99-rigol.rules      # udev, VID + serial → /dev/rigol-psuN
@@ -490,6 +494,24 @@ Build order chosen so a half-finished v1 is still useful.
 3. **Device health** — three PSUs, online/offline/quarantined, serial-mismatch and
    clamp-violation banners, connection error reasons.
 4. **Preset library** — CRUD on the channel-preset primitives.
+
+### 14.1 Component library
+
+**Skeleton UI v3** with the built-in **Cerberus** theme. Skeleton is imported
+CSS-first alongside Tailwind and the theme is selected with a `data-theme`
+attribute on `<html>`, so there is no theme build step and no runtime theming
+machinery to maintain. Skeleton publishes a Vite + Svelte installation path, so
+adopting it does not drag in SvelteKit — the SPA stays a plain Vite build whose
+output is embedded in the binary.
+
+Two conventions worth fixing now, because a component library makes it easy to
+drift:
+
+- **Dark theme is the default.** This is a bench instrument read across a room.
+- **Status colour is never the only signal.** Offline, `Unknown`, quarantined and
+  clamp-violating channels each carry a text label as well as a colour. A rail
+  whose state is unknown must not be distinguishable from a healthy one by hue
+  alone — that is precisely the case where a misread is expensive.
 
 ---
 

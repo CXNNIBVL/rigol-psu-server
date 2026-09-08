@@ -1,0 +1,14 @@
+[package]
+name = "dp832"
+description = "Driver for the Rigol DP832 programmable DC power supply over USBTMC."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
