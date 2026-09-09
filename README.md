@@ -20,6 +20,7 @@ alternatives that were rejected, is in **[docs/PLAN.md](docs/PLAN.md)**.
 ## Running without hardware
 
 ```sh
+just build-ui     # once, on a fresh clone
 just dev          # three simulated supplies on 127.0.0.1:8080
 ```
 
@@ -68,8 +69,12 @@ profile that spans an unreachable supply.
 
 ## Development
 
+New here? **[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)** covers what to
+install, the first run against simulated supplies, and the things that go wrong
+first.
+
 ```sh
-just               # fmt, lint, test
+just               # list the recipes
 just test          # Rust, nextest, simulator only
 just test-ui       # svelte-check + Vitest component tests
 just test-e2e      # Playwright against the real binary
