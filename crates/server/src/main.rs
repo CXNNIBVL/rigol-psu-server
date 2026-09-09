@@ -8,7 +8,7 @@
 //! down.
 
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -25,6 +25,9 @@ use server::simulation;
 /// How long to wait on a supply before declaring it unresponsive.
 const INSTRUMENT_TIMEOUT: Duration = Duration::from_secs(3);
 
+/// Where presets and profiles live when nobody says otherwise.
+const DEFAULT_DATABASE: &str = "/var/lib/rigol-psu/data.db";
+
 #[derive(Parser, Debug)]
 #[command(
     name = "rigol-psu-server",
@@ -39,13 +42,12 @@ struct Args {
     #[arg(long, value_name = "ADDR")]
     bind: Option<SocketAddr>,
 
-    /// Where presets and profiles are stored.
-    #[arg(
-        long,
-        value_name = "PATH",
-        default_value = "/var/lib/rigol-psu/data.db"
-    )]
-    database: PathBuf,
+    /// Where presets and profiles are stored [default: /var/lib/rigol-psu/data.db].
+    ///
+    /// Under `--simulate` there is no default and the store is kept in memory;
+    /// give a path here to keep what a simulated run creates.
+    #[arg(long, value_name = "PATH")]
+    database: Option<PathBuf>,
 
     /// Run against N simulated supplies instead of hardware. Development only.
     #[cfg(feature = "simulation")]
@@ -81,20 +83,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.bind = bind;
     }
 
-    // Simulated runs keep their data in memory: a throwaway bench should not
-    // leave presets behind, or pick up someone else's.
-    let store = Arc::new(match simulated {
-        Some(_) => {
-            tracing::warn!("presets and profiles are in memory and will not be kept");
-            Store::in_memory()?
-        }
-        None => {
-            if let Some(parent) = args.database.parent() {
-                std::fs::create_dir_all(parent)?;
+    let store = Arc::new(
+        match database_path(simulated.is_some(), args.database.as_deref()) {
+            None => {
+                tracing::warn!("presets and profiles are in memory and will not be kept");
+                Store::in_memory()?
             }
-            Store::open(&args.database)?
-        }
-    });
+            Some(path) => {
+                if simulated.is_some() {
+                    // Worth saying out loud: a throwaway bench is now writing to a
+                    // real file, and whatever it creates will outlive the run.
+                    tracing::warn!(path = %path.display(), "keeping presets and profiles on disk");
+                }
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                Store::open(&path)?
+            }
+        },
+    );
 
     let (supervisor, sim_registry) = start_supervisor(&config, simulated);
     let supervisor = Arc::new(supervisor);
@@ -202,6 +209,20 @@ fn simulate_count(args: &Args) -> Option<usize> {
     args.simulate
 }
 
+/// Where the store lives, or `None` to keep it in memory.
+///
+/// A simulated bench defaults to memory: a throwaway run should not leave
+/// presets behind, or pick up someone else's. But that is a default, not a
+/// rule — an explicit `--database` is a request for exactly the opposite, and
+/// silently ignoring it is worse than either behaviour.
+fn database_path(simulated: bool, explicit: Option<&Path>) -> Option<PathBuf> {
+    match (simulated, explicit) {
+        (_, Some(path)) => Some(path.to_path_buf()),
+        (true, None) => None,
+        (false, None) => Some(PathBuf::from(DEFAULT_DATABASE)),
+    }
+}
+
 #[cfg(not(feature = "simulation"))]
 fn simulate_count(_args: &Args) -> Option<usize> {
     None
@@ -306,5 +327,33 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => tracing::info!("interrupt received"),
         _ = terminate => tracing::info!("SIGTERM received"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_real_bench_defaults_to_the_operator_database() {
+        assert_eq!(
+            database_path(false, None),
+            Some(PathBuf::from(DEFAULT_DATABASE))
+        );
+    }
+
+    #[test]
+    fn a_simulated_bench_defaults_to_memory() {
+        assert_eq!(database_path(true, None), None);
+    }
+
+    #[test]
+    fn an_explicit_path_is_honoured_even_when_simulating() {
+        // The whole point of this function: --database used to be accepted and
+        // then silently dropped under --simulate, so a dev bench threw its
+        // presets away on every restart and said nothing about the path.
+        let asked = Path::new("/tmp/bench.db");
+        assert_eq!(database_path(true, Some(asked)), Some(asked.to_path_buf()));
+        assert_eq!(database_path(false, Some(asked)), Some(asked.to_path_buf()));
     }
 }

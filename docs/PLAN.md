@@ -646,6 +646,14 @@ WebSocket, real SPA — with nothing mocked and no hardware attached. The simula
 is what makes this cheap; without it, E2E would mean either a mocked API (testing
 a fiction) or a bench (untestable in CI).
 
+A simulated run keeps its presets and profiles **in memory**, so each suite —
+and each restart of a dev server — starts from an empty store and cannot pick up
+what a previous run left behind. That is the default, not a rule: passing
+`--database <path>` alongside `--simulate` keeps them on disk, which is what you
+want for a dev bench you return to. The server says which it is doing at
+startup. `--database` on its own defaults to `/var/lib/rigol-psu/data.db`, the
+path the systemd unit owns.
+
 **Visual regression: deliberately not adopted.** A dashboard whose readings change
 every 500 ms is a snapshot-flake generator, and the effort would go into masking
 regions rather than catching defects.
