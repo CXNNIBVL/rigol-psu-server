@@ -1097,4 +1097,37 @@ test.describe('lists', () => {
       await powerOffProfile(page, id);
     }
   });
+
+  test('a checked box uses the bench accent, not the theme brand', async ({ page }) => {
+    // Skeleton paints a checked box with the theme's brand colour, which in
+    // Cerberus is blue — the only place that colour would appear here, since
+    // every accent in this app is `success`. Checked in a real browser because
+    // it is a computed value from the built stylesheet, which jsdom never sees.
+    const stamp = Date.now();
+    await page.request.post('/api/presets', {
+      data: {
+        name: `accent-${stamp}`, volt: 1, curr_limit: 1,
+        ovp_level: 2, ovp_enabled: true, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    await open(page, 'presets');
+    await startCreating(page, 'preset');
+
+    const box = page.getByTestId('preset-dialog').locator('input.checkbox').first();
+    await box.check();
+    const { accent, success } = await box.evaluate((el) => {
+      // The token is authored `oklch(83% .13 …)` and computes to
+      // `oklch(0.83 0.13 …)`, so it is resolved through the same machinery
+      // rather than compared as text.
+      const probe = document.createElement('div');
+      probe.style.accentColor = 'var(--color-success-500)';
+      el.after(probe);
+      const success = getComputedStyle(probe).accentColor;
+      probe.remove();
+      return { accent: getComputedStyle(el).accentColor, success };
+    });
+
+    // Compared against the token rather than a literal, so retheming moves both.
+    expect(accent).toBe(success);
+  });
 });

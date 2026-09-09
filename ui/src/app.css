@@ -51,6 +51,17 @@
 
 
 
+/* Skeleton paints a checked box with the theme's brand colour, which in Cerberus
+   is blue — the only place that colour appears in this app, since every accent
+   here is `success`. It also happens to be the right colour semantically: all
+   three checkboxes in the app mean "on" (energise this rail, enable this
+   protection), and green is what "on" means everywhere else on the bench. */
+.checkbox:checked,
+.checkbox:indeterminate {
+	accent-color: var(--color-success-500);
+	background-color: var(--color-success-500);
+}
+
 /* Skeleton styles the collapsible's root and trigger but not its indicator, so
    the chevron sat still whether open or closed — a disclosure arrow that never
    moves is a broken affordance rather than a decorative one. */

@@ -1065,6 +1065,36 @@ The settings delete was converted alongside the two that were asked for.
 Leaving one question inline and another modal in the same view would have been a
 defect introduced by the fix.
 
+## 27. Which green, and what it means
+
+The Energise checkbox rendered blue while everything around it was teal. It was
+not broken: Skeleton paints a checked box with the theme's brand colour, and
+Cerberus's primary is `oklch(57% .21 258.29)` — blue. The measured accent was
+exactly that token, correctly applied.
+
+What it exposed is that this app never uses its own theme's primary. Every
+accent here is `success` — `oklch(83% .13 174.96)` — the power button, the
+navigation's selected state, the Powered badge, the hover on the add controls.
+The checkbox was simply the one control that still asked the theme rather than
+being told, so it was the only blue thing on the page.
+
+Overriding it to `success` is also the semantically right answer rather than
+merely a consistent one: all three checkboxes in this app mean "on" — energise
+this rail, enable this protection — and green is what on means everywhere else
+on the bench.
+
+It has a browser test rather than a component test, because the value only
+exists once the built stylesheet is applied and jsdom never sees it. The test
+resolves the token through the same machinery it compares against, since the
+token is authored `oklch(83% .13 …)` and computes to `oklch(0.83 0.13 …)`.
+
+**The open question this leaves.** Green now does two jobs: it means "there is
+voltage on this rail", and it is the interface's accent for navigation and for
+adding things. The state meaning is the one that matters on a bench, and every
+non-state use of it spends a little of that meaning. Cerberus's blue primary is
+sitting unused and would carry the chrome perfectly well. That is a repaint and
+a decision, not a defect, so it is written down here rather than acted on.
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the
