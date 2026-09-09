@@ -159,14 +159,14 @@
       <span class="text-xs opacity-50">Show rails</span>
     </button>
   {:else}
-  <ol class="space-y-0 text-sm" data-testid="profile-sequence">
+  <ol class="space-y-0 text-sm overflow-x-auto" data-testid="profile-sequence">
     <!--
       A grid, not a flex row with a spacer. The spacer pushed the measured
       values to the far edge, so the two numbers this row exists to let you
       compare — specified and actual — sat as far apart as the layout could put
       them.
     -->
-    <li class="grid grid-cols-[1.25rem_7rem_minmax(6rem,11rem)_7.5rem_5.5rem_5.5rem_2rem] items-baseline gap-x-3 text-xs opacity-50">
+    <li class="grid grid-cols-[1.25rem_7rem_minmax(6rem,11rem)_7.5rem_5.5rem_5.5rem_2.5rem] items-baseline gap-x-3 text-xs opacity-50">
       <span></span>
       <span>Rail</span>
       <span>Settings</span>
@@ -177,7 +177,7 @@
     </li>
     {#each rails as { binding, channel }, index (binding.id)}
       <li
-        class="grid grid-cols-[1.25rem_7rem_minmax(6rem,11rem)_7.5rem_5.5rem_5.5rem_2rem] items-baseline gap-x-3 py-1"
+        class="grid grid-cols-[1.25rem_7rem_minmax(6rem,11rem)_7.5rem_5.5rem_5.5rem_2.5rem] items-baseline gap-x-3 py-1"
         data-testid="rail-{binding.id}"
       >
         <span class="reading text-xs opacity-50 tabular-nums">{index + 1}</span>

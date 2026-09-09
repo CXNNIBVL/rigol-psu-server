@@ -998,11 +998,20 @@ and one line each. Two full-width bands, stacked: powered above, everything else
 below, with the page's only rule between them, because that boundary is the only
 one that changes what you may assume about the hardware.
 
-**Both bands size tracks by content, not by a fixed split.** `auto-fill` with a
-minimum track of 36rem for live cards and 20rem for collapsed ones means the
-number across answers the window. A single live profile stays card-sized instead
-of stretching into gap, and a wider monitor gets more cards rather than wider
-ones.
+**Both bands size tracks by content, not by a fixed split.** `auto-fill` means
+the number across answers the window: a wider monitor gets more cards rather
+than wider ones.
+
+The track bounds have to be measured from the card, not guessed. A rail row is
+fixed-width — 39.25rem at its narrowest, plus the card's own 2rem of padding —
+so a minimum track below about 42rem gives a wide window enough room for one
+more column than the content can survive, and the row spills out through the
+card's right border. The live band's track is `minmax(43rem, 48rem)` with
+`justify-start`: never narrower than a rail row, never wider than one either,
+and leftover width collects at the end of the band as page margin instead of
+inside the card as gap. The rail list also carries `overflow-x-auto` as a floor,
+so a future layout that gets this wrong degrades to a scrollbar rather than to a
+broken card.
 
 **Cards are as tall as what they have to say.** Stretching them to a common row
 height bought alignment and paid for it with a hundred pixels of void under
