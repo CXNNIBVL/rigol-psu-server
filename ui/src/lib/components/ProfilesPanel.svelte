@@ -92,13 +92,15 @@
 </script>
 
 <!--
-  Capped rather than filling the window. A profile is a name and a handful of
-  rails; stretched across a wide monitor it was mostly gap, and the eye had to
-  travel the whole width to get from a rail to its readings. The bench is left
-  full-width on purpose — its table really does have seven columns of numbers
-  to place.
+  Two bands rather than two columns. What is powered is bounded by the hardware —
+  nine rails, so a handful of profiles at most — and each one is a table of
+  numbers that wants width. What is not powered is unbounded and one line each.
+  Different shapes, so each band lays itself out on its own terms: both fill the
+  window, and both size their tracks by content, so the number of cards across
+  answers the window instead of a fixed split. A single card stays card-sized
+  rather than stretching into gap.
 -->
-<section class="space-y-4 max-w-6xl" data-testid="profiles-panel">
+<section class="space-y-5" data-testid="profiles-panel">
   <div class="space-y-3">
     <div>
       <h2 class="h3">Device profiles</h2>
@@ -185,70 +187,87 @@
     device off the page — the thing that must not happen on a bench.
   -->
   {#if !empty}
-  <div class="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-    <div class="space-y-3">
-      <h3 class="text-xs opacity-60">Live &mdash; {live.length}</h3>
-      <div
-        class="space-y-3 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
-        data-testid="live-profiles"
-      >
-        {#each live as profile (profile.id)}
-          <ProfileCard
-            {profile}
-            {devices}
-            onchange={refresh}
-            onedit={() => (editing = profile)}
-            ondelete={() => (confirming = profile)}
-          />
-        {/each}
-        {#if live.length === 0}
-          <p class="text-sm opacity-60">
-            {query
-              ? 'No live profile matches.'
-              : 'Nothing is powered. Apply a profile and switch it on to see it here.'}
-          </p>
-        {/if}
-      </div>
-    </div>
+    <section class="space-y-3">
+      <h3 class="text-sm font-semibold">
+        Powered <span class="font-normal opacity-50">{live.length}</span>
+      </h3>
+      {#if live.length === 0}
+        <p class="text-sm opacity-60">
+          {query
+            ? 'Nothing powered matches that.'
+            : 'Nothing is powered. Apply a profile and switch it on to see it here.'}
+        </p>
+      {:else}
+        <div
+          class="grid items-start gap-4 grid-cols-[repeat(auto-fill,minmax(36rem,1fr))] max-h-[45vh] overflow-y-auto pr-1"
+          data-testid="live-profiles"
+        >
+          {#each live as profile (profile.id)}
+            <ProfileCard
+              {profile}
+              {devices}
+              onchange={refresh}
+              onedit={() => (editing = profile)}
+              ondelete={() => (confirming = profile)}
+            />
+          {/each}
+        </div>
+      {/if}
+    </section>
 
-    <div class="space-y-3">
-      <h3 class="text-xs opacity-60">Idle &mdash; {idle.length}</h3>
+    <!-- The only rule on this page, because this is the only boundary on it
+         that changes what you are allowed to assume about the hardware. -->
+    <section class="space-y-3 border-t border-surface-200-800 pt-5">
+      <h3 class="text-sm font-semibold">
+        Not powered <span class="font-normal opacity-50">{idle.length}</span>
+      </h3>
       <div
-        class="space-y-2 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
+        class="grid items-start gap-3 grid-cols-[repeat(auto-fill,minmax(20rem,1fr))] max-h-[calc(100vh-30rem)] min-h-[14rem] overflow-y-auto pr-1"
         data-testid="idle-profiles"
       >
-        <!-- The add action lives at the top of the list it creates into, where
-             what it makes will appear, rather than as an icon in a corner. -->
+        <!-- The add action lives in the list it creates into, where what it
+             makes will appear, rather than as an icon in a far corner. -->
         <button
-          class="flex w-full items-center justify-center gap-2 rounded border border-dashed border-surface-300-700 p-3 text-sm opacity-70 hover:opacity-100 hover:border-success-500"
+          class="flex min-h-[6rem] w-full flex-col items-center justify-center gap-2 rounded border border-dashed border-surface-300-700 p-3 text-sm opacity-70 hover:opacity-100 hover:border-success-500"
           type="button"
           onclick={() => (editing = null)}
           data-testid="new-profile"
         >
-          <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
             <path d="M12 5v14M5 12h14" />
           </svg>
           New profile
         </button>
 
         {#each idle as profile (profile.id)}
-          <ProfileCard
-            {profile}
-            {devices}
-            compact={!expanded.has(profile.id)}
-            onchange={refresh}
-            onedit={() => (editing = profile)}
-            ondelete={() => (confirming = profile)}
-            onexpand={() => {
-              const next = new Set(expanded);
-              next.add(profile.id);
-              expanded = next;
-            }}
-          />
+          <!-- Expanded, a card carries the rail table, which is wider than one
+               track. Taking a second track is the room it needs, and it shows
+               what the click did. -->
+          <div
+            class={expanded.has(profile.id) ? 'md:col-span-2' : ''}
+          >
+            <ProfileCard
+              {profile}
+              {devices}
+              compact={!expanded.has(profile.id)}
+              onchange={refresh}
+              onedit={() => (editing = profile)}
+              ondelete={() => (confirming = profile)}
+              onexpand={() => {
+                const next = new Set(expanded);
+                next.add(profile.id);
+                expanded = next;
+              }}
+              oncollapse={() => {
+                const next = new Set(expanded);
+                next.delete(profile.id);
+                expanded = next;
+              }}
+            />
+          </div>
         {/each}
       </div>
-    </div>
-  </div>
+    </section>
   {/if}
 
   {#if confirming}

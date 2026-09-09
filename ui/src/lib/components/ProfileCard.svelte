@@ -26,6 +26,7 @@
     onedit,
     ondelete,
     onexpand,
+    oncollapse,
   }: {
     profile: DeviceProfile;
     devices: DeviceView[];
@@ -35,6 +36,8 @@
     onedit?: () => void;
     ondelete?: () => void;
     onexpand?: () => void;
+    /** Only passed where collapsing is possible, so a live card never offers it. */
+    oncollapse?: () => void;
   } = $props();
 
   let error = $state<string | null>(null);
@@ -214,6 +217,20 @@
       {/if}
     {/each}
   </ol>
+  {#if oncollapse}
+    <!-- Expanding reflows the grid around this card, so it has to be undoable.
+         Same words and same place as the control that opened it. -->
+    <div class="flex justify-end">
+      <button
+        class="text-xs opacity-50 hover:opacity-100"
+        type="button"
+        onclick={() => oncollapse?.()}
+        data-testid="collapse-profile"
+      >
+        Hide rails
+      </button>
+    </div>
+  {/if}
   {/if}
 
   <div class="flex flex-wrap items-center gap-2">

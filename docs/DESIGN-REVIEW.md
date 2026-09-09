@@ -978,6 +978,50 @@ the moment applying makes it usable. Nothing is hidden that you could have
 pressed. The expanded card is unchanged: there, the disabled controls are worth
 their space because the card is claiming to be the full picture.
 
+## 25. Bands, not columns
+
+The two-column split fixed the ordering problem and created a width one: a
+72rem cap that had been right for a single column left two narrow columns in a
+1600px window, with dead page to the right of both.
+
+**Horizontal lists are the wrong instrument here.** A live profile card is a
+table — rails down, specified against measured across — so a horizontal strip
+would squeeze it exactly where the last change widened it, and put the two
+numbers you are there to compare back at opposite ends of the row. Horizontal
+scroll also hides content behind an edge without admitting it, and "is anything
+else powered?" has to be answerable without a gesture.
+
+**The two groups are different shapes, so they get different containers.** What
+is powered is bounded by the hardware — nine rails, so a handful of profiles at
+most — and each is a table that wants width. What is not powered is unbounded
+and one line each. Two full-width bands, stacked: powered above, everything else
+below, with the page's only rule between them, because that boundary is the only
+one that changes what you may assume about the hardware.
+
+**Both bands size tracks by content, not by a fixed split.** `auto-fill` with a
+minimum track of 36rem for live cards and 20rem for collapsed ones means the
+number across answers the window. A single live profile stays card-sized instead
+of stretching into gap, and a wider monitor gets more cards rather than wider
+ones.
+
+**Cards are as tall as what they have to say.** Stretching them to a common row
+height bought alignment and paid for it with a hundred pixels of void under
+every short card. Ragged bottoms are the honest result of cards holding
+different numbers of rails.
+
+**Expanding a collapsed card gives it a second track.** The rail table is wider
+than one track in the idle grid, so opening one widens it to a live card's
+width. That reflows the grid around it, which is why it also gained a way back:
+`Hide rails`, in the same place and the same words as the control that opened
+it. A live card is always expanded and never offers it.
+
+**Headings say `Powered` and `Not powered`.** The previous pair, `Live — 1` and
+`Idle — 4`, was a spaced-em-dash label arrived at by habit rather than decision,
+and `Idle` was also wrong: that group holds staged and applied-but-off profiles,
+which are not idle in any sense the badges use. `Not powered` is exactly true of
+every card under it, and it reuses the vocabulary the status badges already
+teach.
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

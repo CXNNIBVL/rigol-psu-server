@@ -407,4 +407,21 @@ describe('ProfileCard', () => {
     });
     expect(screen.getByRole('button', { name: /Mainboard power/ })).toBeEnabled();
   });
+
+  it('an expanded card can be collapsed again, a live one cannot', async () => {
+    // Expanding reflows the grid around the card, so it has to be undoable.
+    // A live card is always expanded and has nothing to collapse to.
+    const collapsed = vi.fn();
+    const { unmount } = render(ProfileCard, {
+      profile: profile(),
+      devices: idleBench(),
+      oncollapse: collapsed,
+    });
+    await userEvent.click(screen.getByTestId('collapse-profile'));
+    expect(collapsed).toHaveBeenCalledOnce();
+    unmount();
+
+    render(ProfileCard, { profile: profile(), devices: stagedBench() });
+    expect(screen.queryByTestId('collapse-profile')).toBeNull();
+  });
 });
