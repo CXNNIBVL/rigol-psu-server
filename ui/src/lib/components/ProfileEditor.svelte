@@ -221,21 +221,11 @@
   <hr class="hr" />
 
   <div class="space-y-2">
-    <div class="flex items-center justify-between">
-      <div>
-        <h4 class="font-semibold">Power-up sequence</h4>
-        <p class="text-xs opacity-60">
-          Rails come up top to bottom. A dwell pauses before the next one starts.
-        </p>
-      </div>
-      <button
-        class="btn btn-sm preset-tonal"
-        type="button"
-        onclick={addBinding}
-        disabled={choices.length === 0}
-      >
-        Add rail
-      </button>
+    <div>
+      <h4 class="font-semibold">Power-up sequence</h4>
+      <p class="text-xs opacity-60">
+        Rails come up top to bottom. A dwell pauses before the next one starts.
+      </p>
     </div>
 
     {#if choices.length === 0}
@@ -400,6 +390,21 @@
         </label>
       {/if}
     {/each}
+
+    <!-- At the end, because a new rail is appended there. In the corner above,
+         the control that adds to the bottom of an ordered list sat furthest
+         from the place its result appears. -->
+    <button
+      class="flex w-full items-center justify-center gap-2 rounded border border-dashed border-surface-300-700 p-3 text-sm opacity-70 hover:opacity-100 hover:border-success-500 disabled:opacity-40 disabled:hover:border-surface-300-700"
+      type="button"
+      onclick={addBinding}
+      disabled={choices.length === 0}
+    >
+      <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      Add rail
+    </button>
   </div>
 
   {#if error}

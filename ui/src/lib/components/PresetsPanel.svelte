@@ -13,6 +13,7 @@
   import FormDialog from './FormDialog.svelte';
   import SearchBox from './SearchBox.svelte';
   import EmptyState from './EmptyState.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
 
   let presets = $state<ChannelPreset[]>([]);
   let profiles = $state<DeviceProfile[]>([]);
@@ -259,29 +260,18 @@
   </div>
   {/if}
 
-  {#if confirming}
-    <div
-      class="card preset-outlined-surface-200-800 p-4 space-y-3"
-      role="alertdialog"
-      aria-label="Confirm delete"
-      data-testid="confirm-delete"
-    >
-      <p class="text-sm">Delete <strong>{confirming.name}</strong>?</p>
-      <div class="flex gap-2">
-        <button
-          class="btn btn-sm preset-filled-error-500"
-          type="button"
-          onclick={() => confirming && remove(confirming)}
-          data-testid="confirm-delete-yes"
-        >
-          Delete settings
-        </button>
-        <button class="btn btn-sm preset-tonal" type="button" onclick={() => (confirming = null)}>
-          Keep them
-        </button>
-      </div>
-    </div>
-  {/if}
+  <ConfirmDialog
+    open={confirming !== null}
+    title="Delete {confirming?.name ?? ''}?"
+    confirmLabel="Delete settings"
+    cancelLabel="Keep them"
+    testid="confirm-delete"
+    onconfirm={() => confirming && remove(confirming)}
+    oncancel={() => (confirming = null)}
+  >
+    Any profile using it keeps the values it was given; this removes the saved
+    name, not the setpoints already on a rail.
+  </ConfirmDialog>
 
   <FormDialog
     open={editing !== undefined}

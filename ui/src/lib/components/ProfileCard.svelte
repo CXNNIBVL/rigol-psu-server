@@ -17,6 +17,7 @@
   import { isCurrentLimited, reading, trim, UNKNOWN } from '../format';
   import ActionIcon from './ActionIcon.svelte';
   import PowerButton from './PowerButton.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
 
   let {
     profile,
@@ -298,39 +299,22 @@
     <p class="text-xs opacity-60">Apply the setpoints before powering on</p>
   {/if}
 
-  {#if confirmingCycle}
-    <div
-      class="preset-tonal-warning p-3 rounded space-y-2"
-      role="alertdialog"
-      aria-label="Confirm power cycle"
-      data-testid="confirm-cycle"
-    >
-      <p class="text-sm">
-        Switch off <strong>{profile.name}</strong>, wait, then bring its rails back
-        up in order? Whatever is connected loses power for about half a second.
-      </p>
-      <div class="flex gap-2">
-        <button
-          class="btn btn-sm preset-filled-warning-500"
-          type="button"
-          onclick={() => {
-            confirmingCycle = false;
-            void run(() => powerCycleProfile(profile.id));
-          }}
-          data-testid="confirm-cycle-yes"
-        >
-          Power cycle
-        </button>
-        <button
-          class="btn btn-sm preset-tonal"
-          type="button"
-          onclick={() => (confirmingCycle = false)}
-        >
-          Leave it up
-        </button>
-      </div>
-    </div>
-  {/if}
+  <ConfirmDialog
+    open={confirmingCycle}
+    title="Power cycle {profile.name}?"
+    confirmLabel="Power cycle"
+    cancelLabel="Leave it up"
+    tone="warning"
+    testid="confirm-cycle"
+    onconfirm={() => {
+      confirmingCycle = false;
+      void run(() => powerCycleProfile(profile.id));
+    }}
+    oncancel={() => (confirmingCycle = false)}
+  >
+    Its rails go off, settle, and come back up in order. Whatever is connected
+    loses power for about half a second.
+  </ConfirmDialog>
 
   {#if error}
     <div class="preset-tonal-error p-3 rounded space-y-2" role="alert" data-testid="profile-error">

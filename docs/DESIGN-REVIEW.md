@@ -1039,6 +1039,32 @@ which are not idle in any sense the badges use. `Not powered` is exactly true of
 every card under it, and it reuses the vocabulary the status badges already
 teach.
 
+## 26. Add at the end, and ask in a dialog
+
+**`Add rail` moves to the foot of the power-up sequence.** The sequence is
+ordered in time and a new rail is appended last, so the control that adds one
+belonged at the point where the result appears rather than in the corner
+furthest from it. This is the same rule the profile and settings lists already
+follow; the editor was the one place still doing it the old way.
+
+**Confirmations become modals.** Power-cycling and deleting were inline blocks
+that appeared wherever their owner happened to sit — inside a card for a cycle,
+at the foot of the section for a delete — so it was possible to ask a question
+and then scroll away from it, and on a long page the answer could be off screen
+entirely. They now share a `ConfirmDialog` built on the native `<dialog>`, for
+the same reasons `FormDialog` is: focus trapping, an inert background and
+Escape all come from the platform.
+
+Three rules the component encodes. Focus lands on the cancel button, because
+returning is the common answer to a question you did not mean to ask. Escape
+answers no, which is the safe direction for every question it asks. And both
+buttons name an act — `Power cycle` against `Leave it up`, `Delete profile`
+against `Keep it` — so neither reads as the absence of a choice.
+
+The settings delete was converted alongside the two that were asked for.
+Leaving one question inline and another modal in the same view would have been a
+defect introduced by the fix.
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

@@ -7,6 +7,7 @@
   import FormDialog from './FormDialog.svelte';
   import SearchBox from './SearchBox.svelte';
   import EmptyState from './EmptyState.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import { profileState } from '../profile-state';
 
   let { devices }: { devices: DeviceView[] } = $props();
@@ -270,32 +271,17 @@
     </section>
   {/if}
 
-  {#if confirming}
+  <ConfirmDialog
+    open={confirming !== null}
+    title="Delete {confirming?.name ?? ''}?"
+    confirmLabel="Delete profile"
+    cancelLabel="Keep it"
+    testid="confirm-delete"
+    onconfirm={() => confirming && remove(confirming)}
+    oncancel={() => (confirming = null)}
+  >
     <!-- A profile is minutes of work; a misclick should not be enough to lose
          it. Red appears here, at the point of commitment, and not on the row. -->
-    <div
-      class="card preset-outlined-surface-200-800 p-4 space-y-3"
-      role="alertdialog"
-      aria-label="Confirm delete"
-      data-testid="confirm-delete"
-    >
-      <p class="text-sm">
-        Delete <strong>{confirming.name}</strong>? Its rails stay exactly as they
-        are — this removes the profile, not the power.
-      </p>
-      <div class="flex gap-2">
-        <button
-          class="btn btn-sm preset-filled-error-500"
-          type="button"
-          onclick={() => confirming && remove(confirming)}
-          data-testid="confirm-delete-yes"
-        >
-          Delete profile
-        </button>
-        <button class="btn btn-sm preset-tonal" type="button" onclick={() => (confirming = null)}>
-          Keep it
-        </button>
-      </div>
-    </div>
-  {/if}
+    Its rails stay exactly as they are — this removes the profile, not the power.
+  </ConfirmDialog>
 </section>
