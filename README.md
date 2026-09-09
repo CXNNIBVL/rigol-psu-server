@@ -29,14 +29,21 @@ just dev          # three simulated supplies on 127.0.0.1:8080
 
 ## Running against real supplies
 
-1. Install the udev rule and edit in your serial numbers:
+The build happens **on the lab PC**, from a clone of this repository — not as a
+binary copied from a development machine, whose glibc would become a silent
+deployment dependency.
+
+1. Give the lab PC the toolchain: Rust, Node, a C compiler, `just`, `nextest`.
+2. Clone this repository there.
+3. Install the udev rule and edit in your serial numbers:
    `deploy/99-rigol.rules` — see the comments in the file for how to find them.
-2. Copy `config.example.toml` to `/etc/rigol-psu/config.toml` and set the bind
+4. Copy `config.example.toml` to `/etc/rigol-psu/config.toml` and set the bind
    address, serials and per-channel limits.
-3. Install `deploy/rigol-psu.service`.
+5. `just build`, then install the binary and `deploy/rigol-psu.service`.
 
 See [deploy/README.md](deploy/README.md) for the full procedure, including
-upgrades and what to check when a supply comes up quarantined or offline.
+upgrades, rollback, and what to check when a supply comes up quarantined or
+offline.
 
 The per-channel limits in `config.toml` cannot be raised through the API and are
 not editable from the UI. The server refuses to start without them.

@@ -229,7 +229,9 @@ prevents new energisation, it does not cut existing power.
 
 ## 6. Access and concurrency
 
-- **Reachable over VPN only. No authentication in v1.**
+- **No authentication in v1.** Access control is placement: either the VPN, or a
+  loopback bind reached over an SSH tunnel. Both are supported and the choice is one
+  line of `config.toml`; the tunnel exposes nothing to the network at all.
 - **`--bind` is mandatory with no default.** Exposing the service beyond localhost is
   a deliberate act, not an accident of a default value.
 - **Multiple simultaneous users are expected.** The server is authoritative: all state
@@ -627,13 +629,17 @@ which would make `cargo check` slow and surprising:
 ```
 just build-ui     # vite build -> ui/dist
 just build        # build-ui, then cargo build --release
-just deploy       # scp binary + units to the target
 ```
 
-Cross-compiled locally for `x86_64-unknown-linux-gnu` and scp'd to the target. The
-Svelte bundle is embedded via `rust-embed`, so deployment is a **single binary** with
-no runtime asset paths to get wrong, plus `config.toml`, the udev rule and the systemd
-unit.
+**Built on the target**, from a clone of this repository, rather than shipped as a
+binary from a development machine. Copying a binary between distributions makes the
+build host's glibc a silent deployment dependency, and the failure — the process not
+starting at all — says nothing about this project. Building on the lab PC also puts a
+toolchain where the supplies are, which the `hw_*` profile (§15.1) requires regardless.
+
+The Svelte bundle is embedded via `rust-embed`, so what gets installed is still a
+**single binary** with no runtime asset paths to get wrong, plus `config.toml`, the
+udev rule and the systemd unit. The procedure is `deploy/README.md`.
 
 ---
 
@@ -772,4 +778,4 @@ quietly break.
    schema claiming they are always present would lead a generated client to
    default them to zero, which is precisely the lie §7.3 exists to prevent.
 6. **M6 — Deployment.** udev rule, systemd unit, front panel lock lifecycle,
-   cross-compile and install on the target. Resolve the §11 risks on real hardware.
+   build and install on the target. Resolve the §11 risks on real hardware.

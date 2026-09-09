@@ -221,9 +221,11 @@ in. The short version of why it is not optional:
   outputs cannot be energised until the file is corrected and the service
   restarted. There is no way to clear that from the UI.
 
-The lab PC needs no toolchain — `just build` produces a single binary with the
-UI embedded, and that plus the config, the udev rule and the systemd unit is the
-entire deployment.
+The build happens **on the lab PC**, not here: a binary built on one
+distribution does not necessarily start on another, and the `hw_*` tests can
+only run where the supplies are. So the lab PC gets the same toolchain as §1,
+and `just build` produces a single binary with the UI embedded — that plus the
+config, the udev rule and the systemd unit is the entire deployment.
 
 ---
 

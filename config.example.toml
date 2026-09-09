@@ -12,8 +12,18 @@
 # Install to /etc/rigol-psu/config.toml.
 
 # Where to listen. There is no default — exposing this service must be a
-# deliberate act. The service is expected to be reachable only over the VPN.
-bind = "10.8.0.4:8080"
+# deliberate act, because there is no authentication.
+#
+# Two postures make sense; `0.0.0.0` is neither of them.
+#
+#   - A VPN address, opened directly in a browser. Anyone on the VPN can reach
+#     the bench, and anyone who can reach it can drive it.
+#   - Loopback, reached over an SSH tunnel — `ssh -N -L 2410:127.0.0.1:2410`.
+#     Nothing is exposed to the network, at the cost of a tunnel per person.
+#
+# The address must exist on an interface of this machine, and the port must be
+# open to the VPN interface. See deploy/README.md §7.
+bind = "192.168.1.20:2410"
 
 [poll]
 # How often to read voltage, current and power. Drives how live the dashboard
