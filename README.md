@@ -12,7 +12,7 @@ alternatives that were rejected, is in **[docs/PLAN.md](docs/PLAN.md)**.
 |---|---|
 | M1 — `dp832` driver crate (SCPI, USBTMC, simulator) | done |
 | M2 — server skeleton (config, actors, polling, API, WebSocket) | done |
-| M3 — Svelte UI (bench, profiles, presets, health) | done |
+| M3 — Svelte UI (bench, profiles, rail settings) | done |
 | M4 — safety hardening | done |
 | M5 — presets and profiles (SQLite) | done |
 | M6 — deployment on the lab PC | files in `deploy/`, not yet installed |

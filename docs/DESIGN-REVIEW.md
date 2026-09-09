@@ -1,39 +1,44 @@
-# Frontend design review
+# Frontend design record
 
-**Status:** §2–§4, §6, §7, §10–§14 implemented; §1 out of scope; §5 partly done;
-§9 not started
-**Date:** 2026-09-08
-**Reviewed:** all four sections at 1440×900, plus 390×844 mobile
+**Status:** §1–§28 resolved or decided; **§9 (visual identity) is the only
+section never acted on**, and two items are recorded as declined rather than
+outstanding — see *Open, declined, and deferred* at the end.
+**Started:** 2026-09-08, as a review of the interface after M3
+**Covers:** the three sections of the UI — Bench, Profiles, Rail settings
 
 ---
 
-## Summary
+## What this document is
 
-The interface is *correct*. Every safety rule from the plan is visible in it:
-unknown readings never render as zero, offline supplies explain themselves,
-quarantine and limit violations are named in words, and one accent means
-"active" throughout. That is the hard part and it is done.
+It began as a single design review of the interface at the end of M3: §1–§12,
+triaged **[1]** must fix, **[2]** should fix, **[3]** worth considering. Those
+tags are the original triage and are left as written; every one of them has
+since been resolved or explicitly dropped.
 
-What it does not yet have is a **point of view**. It currently looks like
-Skeleton's Cerberus theme with content in it — which is a reasonable place to
-be after three milestones of building behaviour, but it means the thing a user
-actually came for (what are my rails doing?) has no more visual weight than the
-device path of a USB symlink.
+From §13 onward it stops being a review and becomes a running record of design
+decisions and the reasoning behind them, written as the work happened. Sections
+are append-only: where a later decision replaced an earlier one, the earlier
+section stays and carries a pointer, because the reason a first attempt failed
+is usually the most useful thing on the page. §23 and §24 are both superseded by
+§25 and say so.
 
-Two findings are severe enough to fix regardless of any redesign: **there are
-three accent colours doing two jobs** (§2), and **profile authoring has a dead
-end on its main path** (§10).
+## The findings that shaped everything after
 
-**§1 (mobile) is out of scope by decision** — this is opened from a desk at a lab
-PC. It stays in the document as a record, not as work.
+The interface was **correct** from the start — that was the hard part and M3
+delivered it. Unknown readings never render as zero, offline supplies explain
+themselves, quarantine and limit violations are named in words. Every safety
+rule in `PLAN.md` §10 is visible in the UI.
 
-Two further sections were added after the first pass: **§11** sets rules for
-dividers and finds that five of the eleven currently in the interface should come
-out, and **§12** argues that drawing every collection as the same bordered card
-is what makes the bench feel flat.
+What it lacked was a point of view. It looked like Skeleton's Cerberus theme
+with content in it, which meant the thing an operator came for — *what are my
+rails doing?* — carried no more weight than the device path of a USB symlink.
 
-Issues are grouped by theme and marked **[1]** must fix, **[2]** should fix,
-**[3]** worth considering.
+Two findings were severe enough to fix regardless of any redesign, and both are
+long since fixed: **three accent colours doing two jobs** (§2) and **a dead end
+on the profile-authoring path** (§10).
+
+**§1 (mobile) was ruled out of scope**: this is opened from a desk at a lab PC.
+It stays as a record of what was found, not as work.
 
 ---
 
@@ -915,6 +920,10 @@ an idle profile, so hiding it behind an expand would have defeated the point.
 
 ## 23. Profiles condensed
 
+> **Superseded by §25.** The cap this section introduced was right for a single
+> column and wrong once the list was split in two; §25 removes it. The rail-row
+> grid described here survives and is still what the card uses.
+
 The profile list filled the window, and inside each rail row a flex spacer
 pushed the measured values to the far edge. So the two numbers that row exists
 to let you compare — what the rail is *meant* to do and what it *is* doing — sat
@@ -943,6 +952,11 @@ content does.
 ---
 
 ## 24. Two columns, and where the add button lives
+
+> **Superseded by §25** on the layout. Two side-by-side columns fixed the
+> ordering problem and created a width one. What survives is everything this
+> section says about *where the add action lives* — that part is unchanged and
+> still the rule.
 
 The single column made the page a queue: a powered device sat above a list of
 things that are not running, and adding a fifth idle profile pushed it further
@@ -1153,39 +1167,71 @@ watching that would be justified. It needs the client to tell "I did this" from
 
 ## What is working, and should survive any redesign
 
-- **Unknown is never a number.** The rule holds everywhere, including the
-  segmented control, which shows no selection rather than defaulting to "Off".
+These are the rules the interface is built on. Several were arrived at by
+getting them wrong first; the sections say which.
+
+- **Unknown is never a number.** A rail whose state cannot be read shows a word,
+  an idle one shows a dash, and neither shows a zero. The power button carries
+  this too: `aria-pressed="mixed"` and a distinct look when the state is `null`,
+  rather than resting on "off".
+- **Never interpolate a measured value** (§28). Tweening a reading paints
+  voltages the instrument never reported, which is the same lie as a fabricated
+  zero. Readings snap; so do the badges.
+- **A control never previews the state you asked for** (§28). A rail that is
+  still live must never look off. In-flight shows what is still true plus a mark
+  that an answer is outstanding.
+- **The clamp governs output, not trip points** (`PLAN.md` §10, rule 3). A trip
+  point sits above the value it protects by definition, so clamping OVP was
+  wrong and is not done.
+- **Ownership is verified, not remembered** (§18). A profile's claim on a rail
+  is re-checked against the instrument and dropped the moment anything diverges.
 - **Exceptional states are named in words**, and never dimmed into the
   background.
-- **The rail's attention count** surfaces a supply dropping out from any section.
-- **Applying a profile cannot energise anything** — and the UI makes the two
+- **The attention count on the bench tab** surfaces a supply dropping out from
+  whichever section you are in — a count rather than a dot, because two supplies
+  in trouble is a different situation from one.
+- **Applying a profile cannot energise anything** — and the UI keeps the two
   steps visibly separate.
 - **Errors say what happened and what the limit was**, rather than "invalid
   input".
+- **A control that cannot act is not drawn** in a collapsed card, and **in
+  flight is not the same as disabled** (§28) — one means being done, the other
+  means cannot be done.
 
 ---
 
-## Awaiting confirmation
+## Open, declined, and deferred
 
-Nothing above has been changed.
+**Open — one item.**
 
-Recommended order:
+- **§9, visual identity.** The only section never acted on. The readings still
+  inherit `system-ui`; `.reading` sets `tabular-nums` and nothing else, so the
+  numbers that are the point of this interface are set in whatever the OS
+  supplies. This is the last thing that would make the bench look like an
+  instrument rather than a themed web page, and it wants a conversation about
+  direction before any of it is built.
 
-1. **§10's dead end** — the inline "New preset…" in the profile editor. Smallest
-   change here with the largest effect, and it removes a trap from the main path.
-2. **§2 colour** — a defect rather than taste.
-3. **§12's supply panel** — channels as rows of one instrument. This subsumes
-   §3 (hierarchy), §4 (numeral alignment and precision) and half of §11
-   (the vertical rules stop being needed), so it is better value than fixing
-   those three separately.
-4. **§11's cuts** — five dividers out. Ten minutes, and it makes the remaining
-   ones mean something.
-5. **§10's sequence view** and the profile card's live state — this is what makes
-   profiles feel like a feature rather than a form over two tables.
-6. **§5, §6** — copy, and quiet destructive actions.
-7. **§9** — the visual identity, and only after a conversation about direction.
+**Declined — recorded so they are not raised again.**
 
-The one item I would not start without your decision is §10's "honest version"
-(rails holding values directly, presets as optional extraction). It is the right
-model, but it changes the schema, and the cheap version may well make the
-question moot.
+- **§1, mobile.** Out of scope by decision. This is opened from a desk at a lab
+  PC.
+- **§28's remaining item, motion for changes another operator made.** Several
+  people can be on this bench at once, and a highlight on a rail someone else
+  switched would be the one justified piece of motion not caused by the person
+  watching. Declined: not needed.
+
+**Deferred, waiting on hardware.**
+
+- **Nothing here has met a DP832.** Every suite runs against the simulator.
+  There are zero `hw_*` tests, and the design review was conducted entirely
+  against simulated supplies — so anything that depends on how a real instrument
+  behaves under load, on a slow USB bus, or at the front panel is unverified.
+  `PLAN.md` §11 lists the specific risks.
+
+**A standing question, not a defect.**
+
+- **§27: green does two jobs.** It means "there is voltage on this rail", and it
+  is also the interface's accent for navigation and for adding things. The state
+  meaning is the one that matters on a bench, and every decorative use spends a
+  little of it. Cerberus's blue primary is sitting entirely unused and would
+  carry the chrome perfectly well. That is a repaint and a decision, not a bug.

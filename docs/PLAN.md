@@ -1,8 +1,13 @@
 # Rigol DP832 Bench Control Server — Plan
 
-**Status:** design agreed, not yet implemented
-**Date:** 2026-09-08
+**Status:** M1–M5 built and green against the simulator; M6 (deployment on the
+lab PC) outstanding, and nothing here has yet talked to a real DP832
+**Started:** 2026-09-08
 **Target:** Linux x86_64 lab PC, reachable over VPN only
+
+This is the design record, kept current as the thing was built. Where a decision
+turned out to be wrong, the section says so and says what replaced it, rather
+than being quietly rewritten — the rejected alternatives are the useful part.
 
 ---
 
@@ -505,16 +510,26 @@ Codes: `CLAMP_EXCEEDED`, `CHANNEL_LIVE` (retry with `force`), `DEVICE_QUARANTINE
 
 Build order chosen so a half-finished v1 is still useful.
 
-1. **Dashboard** — *this is the product.* All 9 channels live: V/I/P readouts,
-   per-channel on/off toggle, inline setpoint edit. Instantaneous values only, no
-   trend display. Offline/unknown channels visually distinct from zero.
-2. **Profiles** — browse, create, edit device profiles; apply one; the armed
-   **Power On** control from §9.2.
-3. **Device health** — three PSUs, online/offline/quarantined, serial-mismatch and
-   clamp-violation banners, connection error reasons.
-4. **Preset library** — CRUD on the channel-preset primitives.
+1. **Bench** — all 9 channels live: V/I/P readouts, per-channel on/off, inline
+   setpoint edit. Instantaneous values only, no trend display. Offline and
+   unknown channels visually distinct from zero.
+2. **Profiles** — browse, create, edit device profiles; apply one; power a
+   device up in sequence, and power-cycle it.
+3. **Rail settings** — CRUD on the channel-preset primitives.
 
-All four are built. Two decisions worth recording:
+This was originally four sections: **device health** was a fourth, carrying
+online/offline/quarantined state, serial-mismatch and clamp-violation banners
+and connection error reasons. It was folded into the bench, because a page
+listing three supplies and their condition, separate from the page showing what
+those supplies are doing, made you hold two views in your head to answer one
+question. The health information did not shrink — it moved next to the readings
+it explains.
+
+The preset library is labelled **Rail settings** in the product. "Preset" is the
+schema's word; what an operator saves is a rail's voltage and current limit
+under a name.
+
+Three decisions worth recording:
 
 The profile editor derives its channel list from **live state**, not from a
 hard-coded table, so a rail cannot be bound to a slot that is not configured and
@@ -523,10 +538,16 @@ also warns *before* submission when a preset exceeds the chosen channel's limit
 or a channel is bound twice — the server still refuses both, but there is no
 value in letting someone assemble a profile that is certain to be rejected.
 
-Editing a profile seeds the form once and then leaves it alone; the component is
-keyed on the profile id so choosing a different profile remounts it. A form that
+Editing a profile seeds the form once and then leaves it alone. A form that
 re-synced from server state mid-edit would discard whatever the user was typing
 every time a snapshot arrived — which, at 2 Hz, is constantly.
+
+The editor is mounted only while its dialog is open, rather than keyed on the
+profile being edited. Keying looked equivalent and was not: the key was
+`editing?.id ?? 'new'`, which is the same string when the dialog is closed and
+when it is opening for a *new* profile — so creating one and then pressing New
+reused the component and everything in it, and the second form arrived
+pre-filled with the profile just saved.
 
 ### 14.1 Component library
 
@@ -535,13 +556,23 @@ this section was first written, from documentation that was a major version
 behind; v5.0.1 is what is installed.) Skeleton is imported CSS-first alongside
 Tailwind 4 and the theme is selected with a `data-theme` attribute on `<html>`,
 so there is no theme build step and no runtime theming machinery to maintain.
+
+Dark mode needs a second thing on the same element and it is easy to miss:
+Tailwind 4's `dark` variant follows `prefers-color-scheme` unless told
+otherwise, so `class="dark"` on `<html>` did nothing until
+`@custom-variant dark (&:where(.dark, .dark *))` was declared. Until then the
+app rendered its light palette on every machine whose OS was set to light,
+whatever the theme attribute said.
 Skeleton publishes a Vite + Svelte installation path, so adopting it does not
 drag in SvelteKit — the SPA stays a plain Vite build whose output is embedded in
 the binary.
 
-The resulting bundle is roughly 45 KB of JavaScript and 43 KB of CSS, about
-24 KB gzipped in total. That is the concrete form of the trade made in §3.1
-against Flutter Web, whose CanvasKit payload is measured in megabytes.
+The resulting bundle is roughly 135 KB of JavaScript and 155 KB of CSS, about
+60 KB gzipped in total. (Recorded as 24 KB gzipped when this section was first
+written, which was measured before Skeleton's own stylesheet and the profile and
+settings views existed.) That is the concrete form of the trade made in §3.1
+against Flutter Web, whose CanvasKit payload is measured in megabytes — still
+two orders of magnitude apart.
 
 Navigation is Skeleton's **Navigation in `rail` layout** — a vertical strip of
 icon-plus-label triggers down the left edge, carrying a count of supplies needing
@@ -691,14 +722,22 @@ quietly break.
 ## 16. Milestones
 
 1. **M1 — Talk to a supply.** `dp832` crate: transport trait, SCPI codec, usbtmc
-   implementation, simulator. Read `*IDN?` and `:MEASure:ALL?` from real hardware.
+   implementation, simulator.
+
+   *Done, against the simulator.* Reading `*IDN?` and `:MEASure:ALL?` from real
+   hardware is still outstanding — see M6 — so nothing here has met an
+   instrument yet.
 2. **M2 — Server skeleton.** Config loading with fail-closed validation, per-PSU
    actors, polling, `GET /api/state`, WebSocket snapshots. Runs against
    `--simulate 3`, with the `simulation` feature and its fault-injection routes
    (§15.2) established here so M3's E2E harness has something to drive.
+
+   *Done.*
 3. **M3 — Dashboard.** Svelte SPA on Skeleton/Cerberus, live readouts, manual
    channel control, embedded and served. Vitest component tests and the Playwright
    E2E harness land with it. First genuinely useful build.
+
+   *Done.*
 4. **M4 — Safety.** Clamps, quarantine, adoption on restart, clamp-violation freeze,
    `force` semantics, error taxonomy. Tested end-to-end against the simulator.
 
@@ -706,8 +745,9 @@ quietly break.
    error taxonomy were built into the actor rather than bolted on afterwards:
    they shape its control flow, and shipping write endpoints that skip them —
    even briefly — would have meant an interval where the API could be talked
-   into something the config forbids. What remains for M4 is `force`, which
-   only becomes meaningful once profiles exist (§9.2), and the OpenAPI spec.
+   into something the config forbids. `force` and the OpenAPI spec were left to
+   M5 — `force` because it only becomes meaningful once profiles exist (§9.2) —
+   and both landed there.
 5. **M5 — Presets and profiles.** SQLite, migrations, CRUD, staged apply, sequenced
    power-on, profiles UI.
 
