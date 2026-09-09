@@ -199,7 +199,7 @@
         </p>
       {:else}
         <div
-          class="grid items-start justify-start gap-4 grid-cols-[repeat(auto-fill,minmax(43rem,48rem))] max-h-[45vh] overflow-y-auto pr-1"
+          class="grid items-start justify-start gap-4 grid-cols-[repeat(auto-fill,minmax(min(43rem,100%),48rem))] max-h-[45vh] overflow-y-auto pr-1"
           data-testid="live-profiles"
         >
           {#each live as profile (profile.id)}

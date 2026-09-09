@@ -46,8 +46,16 @@ build-ui:
 build: build-ui
     cargo build --release
 
+# The same bundle without reinstalling node_modules — for the dev loop.
+build-ui-quick:
+    cd ui && npm run build
+
 # Run against simulated supplies — no hardware, no udev rules, no VPN.
-dev:
+#
+# Depends on the bundle on purpose: the server embeds ui/dist at compile time,
+# so running without rebuilding it serves whatever was there last — which looks
+# exactly like a UI fix that did not work.
+dev: build-ui-quick
     cargo run -p server --features simulation -- --simulate 3 --bind 127.0.0.1:8080
 
 # UI type check and component tests.

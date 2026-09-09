@@ -1047,4 +1047,54 @@ test.describe('lists', () => {
     expect(volt!.y).toBeCloseTo(curr!.y, 0);
     expect(curr!.x).toBeGreaterThan(volt!.x);
   });
+
+  test('a live card is wide enough for its rail row at any window width', async ({
+    page,
+  }) => {
+    // The band picks its track count from a minimum measured against the rail
+    // row. Get that minimum wrong and a wide window fits one more column than
+    // the content survives, and the row runs out through the card's border —
+    // which is invisible to every other test here.
+    const stamp = Date.now();
+    const preset = await page.request.post('/api/presets', {
+      data: {
+        name: `wide-${stamp}`, volt: 12, curr_limit: 1,
+        ovp_level: 13, ovp_enabled: false, ocp_level: 2, ocp_enabled: false,
+      },
+    });
+    const created = await page.request.post('/api/profiles', {
+      data: {
+        name: `Wide ${stamp}`, description: '',
+        bindings: [{
+          slot: 'psu2', channel: 'CH2', preset_id: (await preset.json()).id,
+          sequence_order: 1, delay_ms: 0, output_on: true,
+        }],
+      },
+    });
+    const id = (await created.json()).id;
+    await page.request.post(`/api/profiles/${id}/apply`);
+    await page.request.post(`/api/profiles/${id}/power-on`);
+
+    try {
+      await open(page, 'profiles');
+      const rails = page.getByTestId(`profile-${id}`).getByTestId('profile-sequence');
+      await expect(rails).toBeVisible();
+
+      for (const width of [2560, 1920, 1600, 1280, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        // Compared against its own scroll width rather than a pixel count, so
+        // this stays true whatever the rail row's columns become.
+        await expect
+          .poll(
+            () =>
+              rails.evaluate((el) => el.scrollWidth - el.clientWidth),
+            { message: `rail row overflows its card at ${width}px` },
+          )
+          .toBeLessThanOrEqual(1);
+      }
+    } finally {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await powerOffProfile(page, id);
+    }
+  });
 });

@@ -1009,9 +1009,17 @@ more column than the content can survive, and the row spills out through the
 card's right border. The live band's track is `minmax(43rem, 48rem)` with
 `justify-start`: never narrower than a rail row, never wider than one either,
 and leftover width collects at the end of the band as page margin instead of
-inside the card as gap. The rail list also carries `overflow-x-auto` as a floor,
-so a future layout that gets this wrong degrades to a scrollbar rather than to a
-broken card.
+inside the card as gap. The minimum is written `min(43rem, 100%)`, because
+`auto-fill` still produces one track at the stated minimum in a container
+narrower than that, and the track would then overflow the band. The rail list
+also carries `overflow-x-auto` as a floor, so a layout that gets this wrong
+degrades to a scrollbar rather than to a broken card.
+
+This is invisible to a behavioural test and to a screenshot at the one width you
+happen to use, so it has one of its own: the rail row's `scrollWidth` may not
+exceed its `clientWidth`, checked at five window widths from 1024 to 2560. It is
+written against the element's own scroll width rather than a pixel count, so it
+survives the row's columns changing.
 
 **Cards are as tall as what they have to say.** Stretching them to a common row
 height bought alignment and paid for it with a hundred pixels of void under
