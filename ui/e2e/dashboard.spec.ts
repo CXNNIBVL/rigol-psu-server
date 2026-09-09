@@ -1131,3 +1131,54 @@ test.describe('lists', () => {
     expect(accent).toBe(success);
   });
 });
+
+test.describe('a command in flight', () => {
+  test('is marked while it is out, and the mark survives reduced motion', async ({
+    browser,
+  }) => {
+    // The gap between a click and the truth is real: the request crosses a VPN,
+    // a thread talks to the instrument, and the state comes back on the next
+    // 2 Hz snapshot. The mark is the only thing standing in for that, so under
+    // reduced motion it must lose its movement and keep its meaning — deleting
+    // it there would remove the information the motion exists to carry.
+    const context = await browser.newContext({ reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    try {
+      await page.goto('/');
+      await page.getByTestId('nav-bench').click();
+
+      // Held open so the in-flight state can be observed at all.
+      await page.route('**/output', async (route) => {
+        await new Promise((r) => setTimeout(r, 3000));
+        await route.continue();
+      });
+
+      const button = page
+        .getByTestId('channel-psu3-CH3')
+        .getByRole('button', { name: 'CH3 output' });
+      await expect(button).toBeEnabled();
+      await button.click({ noWaitAfter: true });
+
+      const ring = page.getByTestId('power-pending');
+      await expect(ring).toBeVisible();
+      await expect(button).toHaveAttribute('aria-disabled', 'true');
+
+      // Still drawn, and no longer moving.
+      const style = await ring.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { animation: s.animationName, border: s.borderTopStyle, width: s.borderTopWidth };
+      });
+      expect(style.animation).toBe('none');
+      expect(style.border).toBe('dashed');
+      expect(style.width).not.toBe('0px');
+
+      // And it clears once the bench confirms.
+      await expect(ring).toBeHidden({ timeout: 15_000 });
+    } finally {
+      await page.request.post('/api/devices/psu3/channels/CH3/output', {
+        data: { on: false },
+      });
+      await context.close();
+    }
+  });
+});

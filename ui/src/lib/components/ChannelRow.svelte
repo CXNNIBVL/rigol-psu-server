@@ -88,12 +88,35 @@
     }
   }
 
+  // The response says the command was accepted; the snapshot says it happened,
+  // and those are up to half a second apart. In between, the rail's real state
+  // is still the old one — so the button goes on showing it and reports that an
+  // answer is outstanding, rather than snapping back and flipping later.
+  let requested = $state<boolean | null>(null);
+  let settle: ReturnType<typeof setTimeout> | null = null;
+
+  const pending = $derived(requested !== null && channel.output_on !== requested);
+
+  $effect(() => {
+    if (requested !== null && channel.output_on === requested) requested = null;
+  });
+
+  $effect(() => () => {
+    if (settle) clearTimeout(settle);
+  });
+
   async function toggle(on: boolean) {
     error = null;
     busy = true;
     try {
       await setOutput(device.slot, channel.id, on);
+      requested = on;
+      // If the supply never gets there — quarantined, or the write did not
+      // take — stop claiming to wait and go back to reporting what is true.
+      if (settle) clearTimeout(settle);
+      settle = setTimeout(() => (requested = null), 5000);
     } catch (e) {
+      requested = null;
       error = e instanceof ApiFailure ? e.detail.message : String(e);
     } finally {
       busy = false;
@@ -133,6 +156,7 @@
           on={channel.output_on}
           disabled={cannotToggle}
           {busy}
+          {pending}
           label="{channel.id} output"
           onToggle={toggle}
         />

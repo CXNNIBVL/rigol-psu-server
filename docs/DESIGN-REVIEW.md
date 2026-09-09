@@ -1095,6 +1095,62 @@ non-state use of it spends a little of that meaning. Cerberus's blue primary is
 sitting unused and would carry the chrome perfectly well. That is a repaint and
 a decision, not a defect, so it is written down here rather than acted on.
 
+## 28. Motion, and the one place it is earned
+
+This app had almost no motion, which was very nearly right. The exception is
+worth stating as a rule, because the alternative is to add motion everywhere.
+
+**Never interpolate a measured value.** The reflex in a panel of numbers is to
+tween them. Here it is unsafe: a rail going 3.300 V to 12.000 V would paint 6 V
+and 9 V on the way, values the instrument never reported and which are
+indistinguishable from readings. That is the same error as rendering unknown as
+zero, which this app already forbids. Readings snap, and so do the CC badge, the
+status badges and the claim label — they are all assertions about hardware at an
+instant.
+
+**Motion is earned where it answers "did that land?".** Pressing power sends a
+command across a VPN to a thread talking to an instrument, and the truth returns
+on the next 2 Hz snapshot. The button previously went `disabled` for that
+window, which looks exactly like a control that is unavailable — two meanings,
+one appearance — and then snapped back to its old state before flipping half a
+second later. It now carries an in-flight ring for the whole journey, request
+and confirmation together, because from the operator's side those are one
+question and over a VPN either half can be the slow one.
+
+**In flight is not disabled.** `disabled` is for what cannot be done; this is
+something being done. Using the attribute for both dimmed the button exactly
+like an unavailable one, so in-flight is announced with `aria-disabled`, guarded
+in the handler, and keeps the focus a real disable would have thrown away.
+
+**The mark never previews the state you asked for.** It would be tempting to
+show the target immediately. A rail that is still live must never look off, and
+that is the direction of this mistake that gets someone hurt — so the control
+goes on showing what is still true and the ring says only that an answer is
+outstanding.
+
+**Under reduced motion it loses its movement and keeps its meaning.** The ring
+becomes dashed and static. A blanket `prefers-reduced-motion` rule that removed
+it would delete the information the motion exists to carry, so both the ring and
+that contract have tests.
+
+Two implementation notes worth keeping, since both were wrong first. The ring
+breathes rather than spins: `btn-icon` is a rounded square, and a rotating arc
+is a circle's idiom — rotated, its corners stop lining up with the button's and
+it reads as a rendering fault. And it sits *inside* the control, because
+`currentColor` is guaranteed to read against the button's own fill but outside
+it the ring lay on the page background, where a filled button's dark foreground
+all but vanished.
+
+**Still refused:** entrance animations on cards or bands, hover transitions on
+every card, anything that moves when nothing happened. A bench panel that
+breathes makes you look at it for no reason, which is backwards for a screen
+whose job is to be ignorable until something is wrong.
+
+**Left open.** Several operators can be on this bench at once. If someone else
+powers a rail, that is news, and it is the only motion not caused by the person
+watching that would be justified. It needs the client to tell "I did this" from
+"this happened", which is real work and a separate decision.
+
 ## What is working, and should survive any redesign
 
 - **Unknown is never a number.** The rule holds everywhere, including the

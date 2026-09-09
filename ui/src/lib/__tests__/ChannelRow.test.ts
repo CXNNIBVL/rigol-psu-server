@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
+import userEvent from '@testing-library/user-event';
 import ChannelRow from '../components/ChannelRow.svelte';
 import { channel, device, unknownChannel } from './fixtures';
 
@@ -219,5 +220,67 @@ describe('ChannelRow', () => {
     // The per-channel badge still names the state — the readings say Unknown
     // too, which is why this counts rather than looking for one match.
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
+  });
+
+  it('keeps showing the live state while a switch-off is in flight', async () => {
+    // The response says the command was accepted; the snapshot says it
+    // happened, and those are up to half a second apart. Showing the target
+    // state in the gap would put "off" on a rail that still has voltage on it,
+    // which is the direction of this mistake that gets someone hurt.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 204, json: async () => ({}) })),
+    );
+
+    const live = channel({ id: 'CH1', output_on: true });
+    const { rerender } = render(ChannelRow, { device: device(), channel: live });
+    const button = screen.getByRole('button', { name: 'CH1 output' });
+
+    await userEvent.click(button);
+
+    // Still on, because the bench still says so — plus a marker that an answer
+    // is outstanding.
+    expect(button).toHaveAttribute('data-state', 'on');
+    expect(button).toHaveAttribute('data-pending', 'true');
+    expect(screen.getByTestId('power-pending')).toBeInTheDocument();
+    // Announced as unavailable rather than disabled: a real disable dims it
+    // exactly like a control that cannot be used, and throws away the focus.
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).toBeEnabled();
+
+    // And a second press cannot race the first.
+    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+    await userEvent.click(button);
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(calls);
+
+    // The snapshot confirms it, and the marker goes.
+    await rerender({ device: device(), channel: channel({ id: 'CH1', output_on: false }) });
+    expect(button).toHaveAttribute('data-state', 'off');
+    expect(button).not.toHaveAttribute('data-pending');
+    expect(screen.queryByTestId('power-pending')).toBeNull();
+
+    vi.unstubAllGlobals();
+  });
+
+  it('does not wait for a confirmation the command never earned', async () => {
+    // A rejected command has nothing in flight, so the row goes straight back
+    // to reporting what is true and says why.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 409,
+        json: async () => ({ code: 'quarantined', message: 'rail is quarantined' }),
+      })),
+    );
+
+    render(ChannelRow, { device: device(), channel: channel({ id: 'CH1', output_on: true }) });
+    const button = screen.getByRole('button', { name: 'CH1 output' });
+    await userEvent.click(button);
+
+    expect(button).not.toHaveAttribute('data-pending');
+    expect(screen.getByTestId('channel-error')).toHaveTextContent('quarantined');
+
+    vi.unstubAllGlobals();
   });
 });

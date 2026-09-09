@@ -81,6 +81,27 @@
   // have nothing to do either way.
   const cannotToggle = $derived(!anyOn && !staged);
 
+  // Same gap as a channel row, one level up: the profile's rails are brought up
+  // in sequence, so the confirming snapshot is further away still.
+  let requested = $state<boolean | null>(null);
+  let settle: ReturnType<typeof setTimeout> | null = null;
+
+  const pending = $derived(requested !== null && anyOn !== requested);
+
+  $effect(() => {
+    if (requested !== null && anyOn === requested) requested = null;
+  });
+
+  $effect(() => () => {
+    if (settle) clearTimeout(settle);
+  });
+
+  function awaiting(next: boolean) {
+    requested = next;
+    if (settle) clearTimeout(settle);
+    settle = setTimeout(() => (requested = null), 8000);
+  }
+
   const TONE: Record<string, string> = {
     powered: 'preset-tonal-success',
     'partly-powered': 'preset-tonal-warning',
@@ -255,9 +276,21 @@
         on={anyOn}
         disabled={cannotToggle}
         {busy}
+        {pending}
         label="{profile.name} power"
-        onToggle={(next) =>
-          run(() => (next ? powerOnProfile(profile.id) : powerOffProfile(profile.id)))}
+        onToggle={(next) => {
+          awaiting(next);
+          void run(async () => {
+            try {
+              return await (next
+                ? powerOnProfile(profile.id)
+                : powerOffProfile(profile.id));
+            } catch (e) {
+              requested = null;
+              throw e;
+            }
+          });
+        }}
       />
     {/if}
 
