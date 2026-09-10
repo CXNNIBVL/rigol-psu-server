@@ -229,9 +229,10 @@ prevents new energisation, it does not cut existing power.
 
 ## 6. Access and concurrency
 
-- **No authentication in v1.** Access control is placement: either the VPN, or a
-  loopback bind reached over an SSH tunnel. Both are supported and the choice is one
-  line of `config.toml`; the tunnel exposes nothing to the network at all.
+- **No authentication in v1.** Access control is placement: bind to an address on
+  the network the bench should be usable from, or bind to loopback and reach it over
+  an SSH tunnel. Both are supported and the choice is one line of `config.toml`; the
+  tunnel exposes nothing to the network at all.
 - **`--bind` is mandatory with no default.** Exposing the service beyond localhost is
   a deliberate act, not an accident of a default value.
 - **Multiple simultaneous users are expected.** The server is authoritative: all state

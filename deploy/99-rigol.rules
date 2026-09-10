@@ -10,8 +10,18 @@
 #   sudo cp deploy/99-rigol.rules /etc/udev/rules.d/
 #   sudo udevadm control --reload-rules && sudo udevadm trigger
 #
+# This rule can only match once the kernel's usbtmc driver has bound and
+# /dev/usbtmcN exists. `lsusb` seeing the supplies is not the same thing:
+# it proves USB enumeration, not that there is a character device to link to.
+#   ls -l /dev/usbtmc*        # nothing here means `modprobe usbtmc` first
+#
 # Find the serials with:
 #   udevadm info -a -n /dev/usbtmc0 | grep -m1 'ATTRS{serial}'
+#
+# The attribute is `serial`. `lsusb -v` prints the same descriptor field as
+# `iSerial`, but that name does not exist in sysfs, and udev does not warn
+# about a match on an attribute that is not there — a rule written with
+# ATTRS{iSerial} silently never fires and no symlink ever appears.
 #
 # The names assigned here must match the `device` fields in config.toml, and the
 # serials must match its `serial` fields — the server asserts the two agree at
@@ -22,8 +32,13 @@ KERNEL!="usbtmc[0-9]*", GOTO="rigol_end"
 ATTRS{idVendor}!="1ab1", GOTO="rigol_end"
 
 # One line per supply. Replace the serials with your own.
-ATTRS{serial}=="DP8XXXXXXXXX1", SYMLINK+="rigol-psu1", GROUP="rigol", MODE="0660"
-ATTRS{serial}=="DP8XXXXXXXXX2", SYMLINK+="rigol-psu2", GROUP="rigol", MODE="0660"
-ATTRS{serial}=="DP8XXXXXXXXX3", SYMLINK+="rigol-psu3", GROUP="rigol", MODE="0660"
+#
+# MODE="0666" leaves the supplies open to every local account on this machine,
+# which is the trade this bench makes: no group to create, no membership to
+# manage, and the hardware tests run as whoever is logged in. Tighten it with
+# GROUP="<group>", MODE="0660" if that ever stops being acceptable.
+ATTRS{serial}=="DP8XXXXXXXXX1", SYMLINK+="rigol-psu1", MODE="0666"
+ATTRS{serial}=="DP8XXXXXXXXX2", SYMLINK+="rigol-psu2", MODE="0666"
+ATTRS{serial}=="DP8XXXXXXXXX3", SYMLINK+="rigol-psu3", MODE="0666"
 
 LABEL="rigol_end"

@@ -22,8 +22,9 @@ not from this directory.
 
 ## 1. What the lab PC needs
 
-Install as yourself — not as root beyond the package manager, and **not** as the
-`rigol` service user, which is `nologin` and owns nothing but the runtime.
+Install as yourself — the account that will own the bench. Nothing here needs
+root beyond the package manager, and no dedicated service account is created at
+any point: the same login runs the build, the tests and the service.
 
 ```sh
 # Fedora / RHEL
@@ -88,7 +89,17 @@ reboots and replugs. With three identical DP832s that means the numbering can
 rotate silently, and a profile intended for one supply would be applied to
 another. The rule pins each unit to a fixed name by its serial number.
 
-Find the serials with the supplies connected:
+First confirm the kernel has bound the `usbtmc` driver — without a character
+device there is nothing for a rule to link to, and `lsusb` showing the supplies
+does not tell you this:
+
+```sh
+ls -l /dev/usbtmc*        # one node per supply
+lsmod | grep usbtmc
+```
+
+If there are no nodes, `sudo modprobe usbtmc` and replug. Then find the serials
+with the supplies connected:
 
 ```sh
 for dev in /dev/usbtmc*; do
@@ -102,23 +113,20 @@ Edit `deploy/99-rigol.rules`, replacing the placeholder serials, then install it
 ```sh
 sudo cp deploy/99-rigol.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
-ls -l /dev/rigol-psu*        # three symlinks should now exist
+ls -l /dev/rigol-psu*        # one symlink per supply should now exist
 ```
 
-The rule grants the `rigol` group access, so create it and add the service user:
+Each symlink should point at the `usbtmc` node whose serial you matched on —
+`rigol-psu1 -> usbtmc0` and so on. The numbering behind the arrow is the part
+that is allowed to move between reboots; the name in front of it is not.
 
-```sh
-sudo groupadd -f rigol
-sudo useradd -r -g rigol -s /usr/sbin/nologin rigol || true
-```
+The rule sets `MODE="0666"`, so the nodes are open to every local account. There
+is **no group to create and no service account to add** — device access here is
+a matter of the mode on the node, not of membership. That is also what lets the
+hardware tests run as whoever is logged in.
 
-Add **yourself** to that group as well if you intend to run `just test-hardware`
-— those tests open the device nodes directly, as you, and the nodes are
-`0660 root:rigol`:
-
-```sh
-sudo usermod -aG rigol "$USER"     # log out and back in for it to take effect
-```
+The service therefore runs as an ordinary existing account, named by `User=` in
+the unit. Nothing in this procedure creates a user.
 
 ## 4. Configuration
 
@@ -135,19 +143,29 @@ Then edit it. Three things must be right before the service will start:
   the plan) and exposing the service must therefore be a deliberate act. Two
   postures make sense; `0.0.0.0` is neither of them.
 
-  **A VPN address** — `bind = "192.168.x.y:2410"`. Anyone on the VPN opens that
-  address in a browser and gets the bench, with nothing to set up per person.
-  Everyone who can reach it can also drive it.
+  **A network address** — `bind = "192.168.x.y:8080"`, whatever the machine's
+  address is on the network the bench should be usable from. Anyone who can
+  reach it opens it in a browser, with nothing to set up per person, and anyone
+  who can reach it can also drive it.
 
-  **Loopback plus an SSH tunnel** — `bind = "127.0.0.1:2410"`. Nothing is
+  **Loopback plus an SSH tunnel** — `bind = "127.0.0.1:8080"`. Nothing is
   exposed to the network at all, and access control becomes "who has an account
-  on the lab PC", at the cost of a tunnel per person.
+  on this machine", at the cost of a tunnel per person.
 
   Either way this is placement, not authentication. It narrows who can get to
   the bench; it does not identify them, and there is no audit trail in v1.
 
-  Whichever you pick, the address must actually exist on an interface of the lab
-  PC — `ip -br addr` lists them. Binding to an address that is not up fails with
+  An IPv6 address goes in brackets in both places — `bind =
+  "[2001:db8::1]:8080"`, browsed as `http://[2001:db8::1]:8080`. Without them
+  the config does not parse. Be deliberate about which v6 address: a global one
+  is routable as it stands, with no NAT in front of it the way a private v4
+  range has, so "it is only an internal address" does not follow the way it
+  might for `192.168.x.y`. Whether anything outside can actually reach it is a
+  question about the network, not the machine — §7 has a two-command way to
+  find out.
+
+  Whichever you pick, the address must actually exist on an interface of this
+  machine — `ip -br addr` lists them. Binding to an address that is not up fails with
   `Cannot assign requested address` and the process exits; see §7.
 - **`serial`** for each supply must match what the instrument reports. A
   mismatch quarantines that supply: it can be read and configured, but its
@@ -228,6 +246,7 @@ sudo cp -f /usr/local/bin/rigol-psu-server /usr/local/bin/rigol-psu-server.prev 
 sudo install -o root -g root -m 755 target/release/rigol-psu-server /usr/local/bin/
 
 sudo cp deploy/rigol-psu.service /etc/systemd/system/
+sudo sed -i "s/^User=.*/User=$USER/" /etc/systemd/system/rigol-psu.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now rigol-psu
 systemctl status rigol-psu
@@ -236,8 +255,22 @@ systemctl status rigol-psu
 The unit creates `/var/lib/rigol-psu` for the presets and profiles database via
 `StateDirectory`, so nothing else needs setting up.
 
-The service runs as `rigol`, confined by the hardening block in the unit:
-`ProtectSystem=strict`, a `StateDirectory`, and `DeviceAllow=char-usbmisc`. It
+That `sed` is the whole account story: it points the unit at the login you are
+already using, and no user or group is created anywhere in this procedure. The
+unit ships `User=root` so that a copy without the substitution still runs; the
+substitution is what drops it to ordinary privileges.
+
+Redo the `sed` after any later `cp` of the unit, or use a drop-in
+(`sudo systemctl edit rigol-psu`) so the choice survives on its own.
+
+If you change the account after the first start, `chown` the state directory to
+match.
+`StateDirectory=rigol-psu` creates `/var/lib/rigol-psu` owned by whoever `User=`
+names, and a mismatch surfaces as a permission error on `data.db` that reads
+nothing like an ownership problem.
+
+The service is confined by the hardening block in the unit:
+`ProtectSystem=strict`, a `StateDirectory`, and `DeviceAllow=char-usb`. It
 has its device nodes, its config and its database, and nothing else. If a change
 ever needs the server to write somewhere new, it needs a `ReadWritePaths` line
 too — otherwise the write fails with an error that looks nothing like a
@@ -249,7 +282,7 @@ On the lab PC first, against the address you configured:
 
 ```sh
 journalctl -u rigol-psu -f
-curl -s http://192.168.x.y:2410/api/state | head
+curl -s http://192.168.x.y:8080/api/state | head
 ```
 
 Each supply should report `"state": "online"` with a `reported_serial` matching
@@ -260,43 +293,60 @@ whole bench down.
 Then open it in a browser and confirm the UI loads and the readings move. A
 stale or missing bundle is invisible from `curl`.
 
-### Reaching a VPN bind from a browser
+### Reaching it from another machine
 
-Open `http://192.168.x.y:2410` from any machine on the VPN. Plain HTTP, no
-proxy, no CORS to configure: the SPA and the API are served from the same origin
-and port, and the live readings arrive over a WebSocket whose URL the page
-derives from whatever is in the address bar.
+Open `http://192.168.x.y:8080` from a machine that can reach that address. Plain
+HTTP, no proxy, no CORS to configure: the SPA and the API are served from the
+same origin and port, and the live readings arrive over a WebSocket whose URL
+the page derives from whatever is in the address bar.
 
-Two things stop this working, and neither of them looks like the other:
-
-**The port is not open.** The service is listening but the lab PC's firewall
-drops the connection, so the browser hangs and then times out while `curl` on
-the lab PC itself is perfectly happy. Open it on the interface the VPN uses,
-not globally:
+If the browser hangs while `curl` on the bench PC is perfectly happy, it is one
+of two things, and one probe tells you which. Aim a connection at a port on the
+same host where **nothing** is listening:
 
 ```sh
-# firewalld (Fedora / RHEL) — check which zone the VPN interface is in first
-firewall-cmd --get-active-zones
-sudo firewall-cmd --permanent --zone=<zone> --add-port=2410/tcp
-sudo firewall-cmd --reload
-
-# ufw (Debian / Ubuntu)
-sudo ufw allow in on <vpn-iface> to any port 2410 proto tcp
+nc -z -v <address> <an-unused-port>
 ```
 
-**The VPN interface is not up when the service starts.** Binding to a specific
-address requires that address to exist, so on a reboot the server can lose the
-race with the VPN client and exit immediately:
+An instant `connection refused` means your packets arrive and the host is fine;
+the problem is local — a host firewall rejecting the service's port, or a bind
+to the wrong address. A silent timeout means they never arrive, and nothing you
+configure on the bench PC will change that.
+
+**If packets arrive: open the port.** Restrict it to the network the bench
+should be usable from rather than opening it globally.
+
+```sh
+# firewalld — `firewall-cmd --get-active-zones` names the zone for that interface
+sudo firewall-cmd --permanent --zone=<zone> --add-port=8080/tcp
+sudo firewall-cmd --reload
+
+# ufw
+sudo ufw allow in on <iface> to any port 8080 proto tcp
+```
+
+**If they do not arrive: something upstream is dropping them.** Before asking
+anyone to change a network rule, find out what already passes — probe a spread
+of ports the same way, where `refused` means permitted through and `timeout`
+means dropped. Networks commonly allow some ranges and not others, and moving
+`bind` to a port that already works is free. Stay above 1024, or the unit needs
+`AmbientCapabilities=CAP_NET_BIND_SERVICE` to bind it.
+
+### When the address is not up yet at boot
+
+Binding to a specific address requires that address to exist. If it is brought
+up by something that runs after the service — a VPN client, a slow DHCP lease,
+IPv6 duplicate-address detection — the server loses the race and exits:
 
 ```
 Error: Os { code: 99, kind: AddrNotAvailable, message: "Cannot assign requested address" }
 ```
 
-`Restart=on-failure` with `RestartSec=5` means it keeps retrying and comes up on
-its own once the interface appears, so this is self-healing rather than fatal —
-but it leaves a confusing minute of failures in the journal after every boot.
-The tidy fix is to order the unit after whatever brings the VPN up, with a drop-in
-rather than an edit to the shipped unit file:
+`Restart=on-failure` with `RestartSec=5` retries until the address appears, so
+this is self-healing rather than fatal — it just leaves a confusing minute of
+failures in the journal after every boot. To silence it, order the unit after
+whatever brings the address up, as a drop-in rather than an edit to the shipped
+unit:
 
 ```sh
 sudo systemctl edit rigol-psu
@@ -308,21 +358,21 @@ After=wg-quick@wg0.service
 Wants=wg-quick@wg0.service
 ```
 
-Substitute your own VPN unit — `systemctl list-units --type=service | grep -iE 'wg|vpn|openvpn'` will name it.
+Name your own unit there — `systemctl list-units --type=service` will find it.
 
 ### Reaching a loopback bind from your own machine
 
 ```sh
-ssh -N -L 2410:127.0.0.1:2410 lab      # leave running
+ssh -N -L 8080:127.0.0.1:8080 lab      # leave running
 ```
 
-Then open <http://localhost:2410>. The SPA derives its WebSocket URL from
+Then open <http://localhost:8080>. The SPA derives its WebSocket URL from
 whatever is in the browser's address bar, so the live readings work through the
 tunnel with nothing to configure and no CORS surface — the UI and the API are
 served from the same origin and port by design.
 
 Forward to the same local port number where you can. Nothing breaks if you do
-not (`-L 9000:127.0.0.1:2410` is fine), but matching ports makes the address in
+not (`-L 9000:127.0.0.1:8080` is fine), but matching ports makes the address in
 your browser mean the same thing as the address in `config.toml`, which is worth
 something at 2 a.m.
 
@@ -385,9 +435,50 @@ units were swapped and the file needs updating, or the udev rule is pointing at
 the wrong device. Check the Metadata panel on that supply in the UI: it shows
 the configured and reported serials side by side.
 
-**Every supply is offline.** Usually the udev rule has not been applied, or the
-service user is not in the `rigol` group. `ls -l /dev/rigol-psu*` and
-`id rigol` will say which.
+**Every supply is offline.** Usually the udev rule has not been applied, so the
+symlinks the config points at do not exist. `ls -l /dev/rigol-psu*` says
+whether they are there, and `journalctl -u rigol-psu` names the path it could
+not open. If the symlinks exist but the service still cannot open them, check
+their mode — the rule sets `0666`, and a stricter one somewhere else in
+`/etc/udev/rules.d/` may be winning.
+
+**No `/dev/rigol-psu*` symlinks, but `/dev/usbtmc*` exists.** The rule is not
+matching. The usual cause is `ATTRS{iSerial}` instead of `ATTRS{serial}`:
+`iSerial` is what `lsusb -v` calls the field, it does not exist in sysfs, and
+udev fires no warning for a match on an attribute that is not there. Compare
+your rule against what udev actually reports:
+
+```sh
+udevadm info -a -n /dev/usbtmc0 | grep -m1 'ATTRS{serial}'
+sudo udevadm test /sys/class/usbmisc/usbtmc0 2>&1 | grep -iE 'rigol|symlink'
+```
+
+**The service starts degraded: `could not open supply ... Operation not
+permitted`.** Note which error this is. `Operation not permitted` (EPERM) is the
+device cgroup refusing the open, and the mode on the node has nothing to do with
+it — `0666` will not help. It means `DeviceAllow=` in the unit does not cover
+these devices:
+
+```sh
+systemctl show rigol-psu -p DeviceAllow      # expect: char-usb rw
+grep -E '^ *180 ' /proc/devices              # the group name for the usbtmc nodes
+```
+
+`DeviceAllow=` takes a device group name from `/proc/devices` (`usb`, for major
+180), not the udev subsystem name (`usbmisc`). They are different strings for
+the same hardware, and the wrong one fails silently at unit-load and loudly at
+every open.
+
+`Permission denied` (EACCES) is the other error and a different problem: that one
+really is the mode or ownership on `/dev/rigol-psu*`.
+
+**No `/dev/usbtmc*` at all, though `lsusb` lists the supplies.** The `usbtmc`
+driver has not bound. `sudo modprobe usbtmc`, then replug or
+`sudo udevadm trigger --subsystem-match=usbmisc`.
+
+**The UI answers on the bench PC but a remote browser times out.** A host
+firewall or something upstream is dropping the port. §7 has the one-command
+probe that tells you which, and what to do in either case.
 
 **A channel is frozen after a restart.** It was found live with setpoints
 outside its configured limits. The server deliberately leaves it energised —
@@ -406,11 +497,8 @@ was compiled, so `build.rs` embedded a placeholder page. You built with
 `just build` and reinstall.
 
 **The service will not start: `Cannot assign requested address`.** The address
-in `bind` does not exist on any interface — usually the VPN is not up yet. See
-§7.
-
-**The UI is reachable from the lab PC but not over the VPN.** Firewall, almost
-always. See §7.
+in `bind` does not exist on any interface, or did not exist yet when the service
+started. See §7.
 
 **The service fails to start with a config error.** It is fail-closed on
 configuration by design: without a config there are no clamps, and without

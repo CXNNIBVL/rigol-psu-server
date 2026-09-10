@@ -7,8 +7,16 @@ Wants=network-online.target
 [Service]
 Type=exec
 ExecStart=/usr/local/bin/rigol-psu-server --config /etc/rigol-psu/config.toml
-User=rigol
-Group=rigol
+# Set this to an account that already exists on the machine — no user and no
+# group is created for this service. The install step in deploy/README.md
+# rewrites this line to whoever is running it.
+#
+# The supplies are reachable because the udev rule sets MODE="0666", not because
+# of group membership, so any ordinary account can drive them. Left as root it
+# works too, just with more privilege than the job needs. Change it after the
+# first start and /var/lib/rigol-psu needs chowning to match, since
+# StateDirectory= creates it owned by whoever is named here.
+User=root
 
 # The server releases every front panel on SIGTERM. Give it room to do so
 # before being killed, or the supplies stay locked and only the mains switch

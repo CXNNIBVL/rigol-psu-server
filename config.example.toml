@@ -16,14 +16,20 @@
 #
 # Two postures make sense; `0.0.0.0` is neither of them.
 #
-#   - A VPN address, opened directly in a browser. Anyone on the VPN can reach
-#     the bench, and anyone who can reach it can drive it.
-#   - Loopback, reached over an SSH tunnel — `ssh -N -L 2410:127.0.0.1:2410`.
+#   - This machine's address on the network the bench should be usable from,
+#     opened directly in a browser. Anyone who can reach it can drive it.
+#   - Loopback, reached over an SSH tunnel — `ssh -N -L 8080:127.0.0.1:8080`.
 #     Nothing is exposed to the network, at the cost of a tunnel per person.
 #
 # The address must exist on an interface of this machine, and the port must be
-# open to the VPN interface. See deploy/README.md §7.
-bind = "192.168.1.20:2410"
+# reachable from wherever you intend to browse it. See deploy/README.md §7.
+#
+# IPv6 goes in brackets, here and in the browser's address bar:
+#   bind = "[2001:db8::1]:8080"    ->  http://[2001:db8::1]:8080
+# Without them this file fails to parse and the server refuses to start. Note
+# that a global IPv6 address is routable as-is — there is no NAT in front of it
+# the way there is for a private v4 range, and there is no authentication here.
+bind = "192.168.1.20:8080"
 
 [poll]
 # How often to read voltage, current and power. Drives how live the dashboard

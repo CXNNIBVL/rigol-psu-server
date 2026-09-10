@@ -1,7 +1,8 @@
 # Rigol PSU bench server
 
-Control and monitor three USB-attached Rigol DP832 power supplies over HTTP,
-with a browser UI served from the same port.
+Control and monitor USB-attached Rigol DP832 power supplies over HTTP, with a
+browser UI served from the same port. One `[[psu]]` block per supply in the
+config; the bench it was built for runs three.
 
 The full design, including the reasoning behind each decision and the
 alternatives that were rejected, is in **[docs/PLAN.md](docs/PLAN.md)**.
@@ -15,7 +16,7 @@ alternatives that were rejected, is in **[docs/PLAN.md](docs/PLAN.md)**.
 | M3 — Svelte UI (bench, profiles, rail settings) | done |
 | M4 — safety hardening | done |
 | M5 — presets and profiles (SQLite) | done |
-| M6 — deployment on the lab PC | files in `deploy/`, not yet installed |
+| M6 — deployment on the bench PC | done; `hw_*` tests for the §11 risks still to write |
 
 ## Running without hardware
 
@@ -27,23 +28,26 @@ just dev          # three simulated supplies on 127.0.0.1:8080
 `--simulate` and the fault-injection routes exist only in builds with the
 `simulation` feature; the release binary does not contain them.
 
-## Running against real supplies
+The build happens **on the bench PC**, from a clone of this repository — not as
+a binary copied from a development machine, whose glibc would become a silent
+deployment dependency. Nothing is installed system-wide except the binary, the
+unit and the udev rule: no service account, no group, no runtime dependencies.
 
-The build happens **on the lab PC**, from a clone of this repository — not as a
-binary copied from a development machine, whose glibc would become a silent
-deployment dependency.
-
-1. Give the lab PC the toolchain: Rust, Node, a C compiler, `just`, `nextest`.
+1. Give the bench PC the toolchain: Rust, Node, a C compiler, `just`, `nextest`.
 2. Clone this repository there.
 3. Install the udev rule and edit in your serial numbers:
    `deploy/99-rigol.rules` — see the comments in the file for how to find them.
 4. Copy `config.example.toml` to `/etc/rigol-psu/config.toml` and set the bind
    address, serials and per-channel limits.
-5. `just build`, then install the binary and `deploy/rigol-psu.service`.
+5. `just build`, then install the binary and `deploy/rigol-psu.service`, with
+   `User=` pointed at the account you are already using.
+
+Upgrades are `git pull`, `just build`, swap the binary, restart — the previous
+binary is kept as the rollback.
 
 See [deploy/README.md](deploy/README.md) for the full procedure, including
-upgrades, rollback, and what to check when a supply comes up quarantined or
-offline.
+rollback, and what to check when a supply comes up quarantined, offline or
+unreachable from a browser.
 
 The per-channel limits in `config.toml` cannot be raised through the API and are
 not editable from the UI. The server refuses to start without them.
