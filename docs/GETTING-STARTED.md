@@ -1,13 +1,12 @@
 # Getting started
 
-Everything here runs against **simulated supplies**. No DP832, no udev rules, no
-VPN, no lab PC. That is deliberate: the simulator is what makes the whole system
-— including its failure states — reachable from a laptop, and it is what the
-test suite runs against. Real hardware is a deployment concern and lives in
-[deploy/README.md](../deploy/README.md).
+Everything here runs against **simulated supplies** — no DP832, no udev rules,
+no VPN, no lab PC. The simulator reaches every state the real system can,
+failure states included, and it is what the test suite runs against. Real
+hardware lives in [deploy/README.md](../deploy/README.md).
 
 Target: from a clean machine to a bench in your browser in about ten minutes,
-most of which is the first `cargo build`.
+most of it the first `cargo build`.
 
 ---
 
@@ -83,7 +82,7 @@ are expected under `--simulate`; see §5.
 
 Open the address and you have the bench: nine channels across three supplies,
 live readouts updating twice a second, and everything on the **Bench**,
-**Profiles** and **Presets** tabs working end to end.
+**Profiles** and **Settings** tabs working end to end.
 
 If instead you get a page saying *"The UI has not been built"*, you started the
 server some way other than `just dev` — see §4.
@@ -99,24 +98,20 @@ crates/server/    axum routes, WebSocket, OpenAPI, asset embedding, main
 migrations/       versioned SQL, applied at startup
 ui/               the Svelte SPA (src/lib/components is where the screens are)
 deploy/           udev rule, systemd unit — first-class files, not README snippets
-docs/PLAN.md      the design, and why each alternative was rejected
 ```
 
-`docs/PLAN.md` is worth reading before changing anything structural; §12 has the
-layout in full, §7 the runtime model, §10 the safety rules. The frontend has its
-own record of what was changed and why in `docs/DESIGN-REVIEW.md`.
+Structural changes land in `crates/core` (domain model, clamps, apply logic)
+and `crates/server` (routes, WebSocket); read those crates' module docs before
+reworking either.
 
 ---
 
 ## 4. The development loop
 
 **`just dev` rebuilds the UI bundle before starting the server, and it has to.**
-The Svelte build output in `ui/dist` is embedded into the binary by `rust-embed`
-*at compile time*. A server started without rebuilding the bundle serves
-whatever was in `ui/dist` last — which on screen looks exactly like a UI fix
-that did not work. The build is an explicit step rather than something `build.rs`
-shells out to, because making `cargo check` depend on npm would be both slow and
-surprising in an editor.
+`rust-embed` bakes `ui/dist` into the binary at compile time, so a server
+started without rebuilding the bundle serves whatever was there last — which on
+screen looks exactly like a UI fix that did not work.
 
 So:
 
@@ -199,9 +194,10 @@ locally. If CI fails on lint and your machine is green, that is usually why.
 
 Tests named `hw_*` need real DP832s and are excluded from every ordinary run by
 `default-filter` in `.config/nextest.toml`. There are none yet; the profile
-exists for the open risks in §11 of the plan, which can only be settled on the
-bench. Note that this exclusion is a *nextest* mechanism: `cargo test` would
-happily try to run them.
+exists for the open hardware risks — lock release including the `SIGKILL` case,
+sustained poll rate, `usbtmc` timeout and disconnect semantics on this kernel —
+which can only be settled on the bench. Note that this exclusion is a *nextest*
+mechanism: `cargo test` would happily try to run them.
 
 ---
 

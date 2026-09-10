@@ -1,100 +1,56 @@
 # Rigol PSU bench server
 
-Control and monitor USB-attached Rigol DP832 power supplies over HTTP, with a
-browser UI served from the same port. One `[[psu]]` block per supply in the
-config; the bench it was built for runs three.
+Control and monitor USB-attached Rigol DP832 power supplies from your browser.
+One process serves the HTTP API and the UI on the same port; one `[[psu]]`
+block per supply in the config.
 
-The full design, including the reasoning behind each decision and the
-alternatives that were rejected, is in **[docs/PLAN.md](docs/PLAN.md)**.
+**Using a bench someone already runs?** Start at [Using the bench](#using-the-bench).
 
-## Status
+**Running or changing it yourself?** [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)
+for simulated supplies on a laptop, or [deploy/README.md](deploy/README.md) for
+the lab PC.
 
-| Milestone | State |
+## Using the bench
+
+Open the address you were given. Three tabs:
+
+| Tab | For |
 |---|---|
-| M1 — `dp832` driver crate (SCPI, USBTMC, simulator) | done |
-| M2 — server skeleton (config, actors, polling, API, WebSocket) | done |
-| M3 — Svelte UI (bench, profiles, rail settings) | done |
-| M4 — safety hardening | done |
-| M5 — presets and profiles (SQLite) | done |
-| M6 — deployment on the bench PC | done; `hw_*` tests for the §11 risks still to write |
-
-## Running without hardware
-
-```sh
-just build-ui     # once, on a fresh clone
-just dev          # three simulated supplies on 127.0.0.1:8080
-```
-
-`--simulate` and the fault-injection routes exist only in builds with the
-`simulation` feature; the release binary does not contain them.
-
-The build happens **on the bench PC**, from a clone of this repository — not as
-a binary copied from a development machine, whose glibc would become a silent
-deployment dependency. Nothing is installed system-wide except the binary, the
-unit and the udev rule: no service account, no group, no runtime dependencies.
-
-1. Give the bench PC the toolchain: Rust, Node, a C compiler, `just`, `nextest`.
-2. Clone this repository there.
-3. Install the udev rule and edit in your serial numbers:
-   `deploy/99-rigol.rules` — see the comments in the file for how to find them.
-4. Copy `config.example.toml` to `/etc/rigol-psu/config.toml` and set the bind
-   address, serials and per-channel limits.
-5. `just build`, then install the binary and `deploy/rigol-psu.service`, with
-   `User=` pointed at the account you are already using.
-
-Upgrades are `git pull`, `just build`, swap the binary, restart — the previous
-binary is kept as the rollback.
-
-See [deploy/README.md](deploy/README.md) for the full procedure, including
-rollback, and what to check when a supply comes up quarantined, offline or
-unreachable from a browser.
-
-The per-channel limits in `config.toml` cannot be raised through the API and are
-not editable from the UI. The server refuses to start without them.
-
-Presets and profiles are stored in SQLite at `--database`
-(default `/var/lib/rigol-psu/data.db`). Simulated runs keep theirs in memory.
-
-The API describes itself at `GET /api/openapi.json` (OpenAPI 3.1), generated
-from the same Rust types the handlers return.
-
-## Using it
-
-Four tabs: **Bench** (live readouts and direct control), **Profiles** (create,
-edit, apply), **Presets** (the per-channel primitives), **Health** (per-supply
-status, serial mismatches, limit violations).
+| **Bench** | Live readings, about twice a second, and direct control of each channel. A badge counts supplies needing attention — offline, quarantined, or holding a limit violation; open the supply to see which. |
+| **Profiles** | Named setups spanning several channels. Create, edit, apply. |
+| **Settings** | Per-channel building blocks: voltage, current limit, over-voltage (OVP) and over-current (OCP) protection. |
 
 ## Applying a profile
 
-Three separate calls, deliberately:
+Staging a profile and switching it on are separate steps, deliberately:
 
-| Call | Effect |
-|---|---|
-| `POST /api/profiles/{id}/apply` | Validates and stages setpoints. **Never energises.** |
-| `POST /api/profiles/{id}/power-on` | Energises the rails the profile marks on, in sequence. |
-| `POST /api/profiles/{id}/power-off` | Switches every rail off. Always permitted. |
+- **Apply** checks the setpoints against the configured limits and stages them.
+  It never energises a rail.
+- **Power on** energises the rails the profile marks on, in sequence — a second,
+  deliberate action.
+- **Power off** switches every rail off, and is always allowed.
 
-`?force=true` on apply overrides exactly one rule — "every target channel must
-be off". It does not override a clamp, a quarantine, or the refusal to apply a
-profile that spans an unreachable supply.
+Apply is refused unless every target channel is already off. `force` overrides
+that one rule and nothing else: not a limit clamp, not a quarantine, not a
+profile that reaches a supply the server currently can't talk to.
 
-## Development
+## Limits and safety
 
-New here? **[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)** covers what to
-install, the first run against simulated supplies, and the things that go wrong
-first.
+- Per-channel limits live in `config.toml`. They cannot be raised through the
+  API or the UI, and the server will not start without them.
+- A supply whose serial does not match the config is **quarantined**: readable
+  and configurable, but its outputs stay locked off until the config is
+  corrected and the service restarted.
+- Presets and profiles are stored in SQLite (`/var/lib/rigol-psu/data.db` by
+  default). Simulated runs keep them in memory only.
 
-```sh
-just               # list the recipes
-just test          # Rust, nextest, simulator only
-just test-ui       # svelte-check + Vitest component tests
-just test-e2e      # Playwright against the real binary
-just test-all      # all of the above
-just lint          # clippy over both feature configurations
-```
+## Running it yourself
 
-The e2e suite needs browser binaries once per machine:
-`just install-browsers`.
+Everything is a `just` recipe — run `just` for the list.
 
-`hw_*` tests need real supplies and are excluded from ordinary runs; on the lab
-PC use `just test-hardware`.
+- **No hardware** (simulated supplies): [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)
+  — `just build-ui` once, then `just dev`.
+- **The lab PC**: [deploy/README.md](deploy/README.md).
+
+`--simulate` and the fault-injection routes exist only in `simulation`-feature
+builds; the release binary has neither.
