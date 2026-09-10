@@ -37,7 +37,14 @@ LockPersonality=yes
 MemoryDenyWriteExecute=yes
 StateDirectory=rigol-psu
 ReadWritePaths=/var/lib/rigol-psu
-DeviceAllow=char-usbmisc rw
+# `char-usb` is the device group name for major 180 as listed in /proc/devices,
+# which is what DeviceAllow takes. It is NOT the udev subsystem name: udev calls
+# these devices `usbmisc` and the rule in 99-rigol.rules matches on that, but
+# writing `char-usbmisc` here names a group that does not exist. It matches
+# nothing, and because any DeviceAllow= at all closes the policy, every open of
+# the supplies is then denied by the device cgroup with EPERM — regardless of
+# the mode on the node.
+DeviceAllow=char-usb rw
 
 [Install]
 WantedBy=multi-user.target
