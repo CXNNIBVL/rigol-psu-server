@@ -14,6 +14,7 @@
   import StatusBadge from './StatusBadge.svelte';
   import ActionIcon from './ActionIcon.svelte';
   import PowerButton from './PowerButton.svelte';
+  import ProtectionControl from './ProtectionControl.svelte';
 
   let { device, channel }: { device: DeviceView; channel: ChannelView } = $props();
 
@@ -262,6 +263,7 @@
           />
         {/if}
       </div>
+      <ProtectionControl {device} {channel} {writable} />
     {/if}
   </td>
 
