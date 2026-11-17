@@ -118,6 +118,27 @@ test('a setpoint within limits is applied and reflected back', async ({ page }) 
     .toBeCloseTo(3.3, 3);
 });
 
+test('protection set on the bench reaches the instrument', async ({ page }) => {
+  await open(page);
+  const card = page.getByTestId('channel-psu1-CH2');
+
+  await card.getByRole('button', { name: 'Edit CH2 protection' }).click();
+  await card.getByLabel('CH2 OVP level').fill('6.5');
+  await card.getByLabel('CH2 OVP enabled').check();
+  await card.getByLabel('CH2 OCP enabled').uncheck();
+  await card.getByRole('button', { name: 'Apply CH2 protection' }).click();
+
+  await expect(card.getByTestId('protection')).toContainText('OVP 6.5 V');
+  await expect(card.getByTestId('protection')).toContainText('OCP off');
+  await expect
+    .poll(async () => {
+      const s = await (await page.request.get('/api/state')).json();
+      return s.devices.find((d: { slot: string }) => d.slot === 'psu1').channels[1]
+        .protection;
+    })
+    .toMatchObject({ ovp_level: 6.5, ovp_enabled: true, ocp_enabled: false });
+});
+
 test('a setpoint above the operator limit is refused, with both numbers', async ({
   page,
 }) => {

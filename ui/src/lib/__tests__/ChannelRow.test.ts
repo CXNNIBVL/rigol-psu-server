@@ -164,6 +164,80 @@ describe('ChannelRow', () => {
     vi.unstubAllGlobals();
   });
 
+  it('shows the protection trip points, and says when one is off', () => {
+    render(ChannelRow, {
+      device: device(),
+      channel: channel({
+        protection: { ovp_level: 5.5, ovp_enabled: true, ocp_level: 2, ocp_enabled: false },
+      }),
+    });
+    const line = screen.getByTestId('protection');
+    expect(line).toHaveTextContent('OVP 5.5 V');
+    expect(line).toHaveTextContent('OCP off');
+  });
+
+  it('sends all four protection fields when one is changed', async () => {
+    // The endpoint takes the whole set, so untouched fields carry what the
+    // instrument already has.
+    const sent: { url: string; body: unknown }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        sent.push({ url, body: JSON.parse(String(init?.body)) });
+        return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+      }),
+    );
+
+    render(ChannelRow, { device: device(), channel: channel() });
+    await userEvent.click(screen.getByRole('button', { name: 'Edit CH1 protection' }));
+    await userEvent.clear(screen.getByLabelText('CH1 OVP level'));
+    await userEvent.type(screen.getByLabelText('CH1 OVP level'), '4');
+    await userEvent.click(screen.getByLabelText('CH1 OCP enabled'));
+    await userEvent.click(screen.getByRole('button', { name: 'Apply CH1 protection' }));
+
+    expect(sent[0]!.url).toBe('/api/devices/psu1/channels/CH1/protection');
+    expect(sent[0]!.body).toEqual({
+      ovp_level: 4,
+      ovp_enabled: true,
+      ocp_level: 2,
+      ocp_enabled: false,
+    });
+    expect(screen.queryByTestId('protection-edit')).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the protection edit open and says why when it is refused', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 422,
+        json: async () => ({ code: 'invalid', message: 'OVP level out of range' }),
+      })),
+    );
+
+    render(ChannelRow, { device: device(), channel: channel() });
+    await userEvent.click(screen.getByRole('button', { name: 'Edit CH1 protection' }));
+    await userEvent.clear(screen.getByLabelText('CH1 OVP level'));
+    await userEvent.type(screen.getByLabelText('CH1 OVP level'), '99');
+    await userEvent.click(screen.getByRole('button', { name: 'Apply CH1 protection' }));
+
+    expect(screen.getByTestId('protection-error')).toHaveTextContent('out of range');
+    expect(screen.getByLabelText('CH1 OVP level')).toHaveValue(99);
+    vi.unstubAllGlobals();
+  });
+
+  it('offers no protection edit on a channel that cannot be written', () => {
+    render(ChannelRow, {
+      device: device(),
+      channel: channel({ violation: { quantity: 'voltage', requested: 12, limit: 5.5 } }),
+    });
+    expect(screen.getByTestId('protection')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Edit CH1 protection' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('marks its state on the element, and drops the on/off badge', () => {
     render(ChannelRow, { device: device(), channel: channel({ output_on: true }) });
     const card = screen.getByTestId('channel-psu1-CH1');
